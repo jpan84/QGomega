@@ -112,6 +112,8 @@ def main():
    vpot = np.reshape(vpot, (l-1, m+1, n+1), order='C')
    vpot = xr.DataArray(vpot, coords=[DS.level[1:-1], DS.lat, DS.lon], dims=['level', 'lat', 'lon'])
    uag, vag = grad(vpot, DS.dx)
+   uag = xr.DataArray(uag, coords=vpot.coords, dims=vpot.dims)
+   vag = xr.DataArray(vag, coords=vpot.coords, dims=vpot.dims)
 
    outds = outds.assign(variables=dict(UAG=uag, VAG=vag))
    outds.to_netcdf(path='QGomega.nc') 
