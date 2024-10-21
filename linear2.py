@@ -68,6 +68,7 @@ def main():
    m = qgforcing.shape[1] + 1
    n = qgforcing.shape[2] - 1
    forcevec = np.reshape(qgforcing.values, (l-1)*(m-1)*(n+1), order='C') #vectorize forcing terms (last axis changing fastest in level,lat,lon)
+   print(qgforcing.shape)
    #handle the north/south boundary conditions
    for r in range(forcevec.shape[0]):
       i = 1 + r // (n+1) // (m-1)
@@ -86,6 +87,7 @@ def main():
    print('Solving BVP...')
    omegavec = spsolve(A, forcevec)
    omegavec = np.reshape(omegavec, (l-1, m-1, n+1), order='C')
+   print(omegavec.shape)
 
    qgomega = xr.DataArray(omegavec, coords = qgforcing.coords, dims = qgforcing.dims)
    omegatitle = 'Colors: $\omega_{QG}$ (forcing by DVA + TA) %d hPa %s\nContours: Reanalysis $\omega \hspace{0.5} [Pa \hspace{0.5} s^{-1}]$' % (int(ULEV), str(DS.time.values))
@@ -97,16 +99,22 @@ def main():
    errtitle = 'QG Error (QG $\omega$ minus Reanalysis) %d hPa %s' % (int(ULEV), str(DS.time.values))
    plotmap(qgerror, ULEV, BNDS, errtitle, '$Pa \hspace{0.5} s^{-1}$', 'QGerror.png', cmap='bwr', norm=colors.TwoSlopeNorm(vcenter=0))
 
+   outds = xr.Dataset(data_vars=dict(OMEGAQG=qgomega, OMEGA=DS.OMEGA, FORCING=qgforcing, FORCETA=forceTA, FORCEVA=forceVA))
+   outds = outds.fillna(0)
+
    print('Computing ageo winds...')
-   diver = -d_dp(qgomega, dp)
-   divervec = np.reshape(diver.values, (l-1)*(m-1)*(n+1), order='C') #vectorize divergence (last axis changing fastest in level,lat,lon)
-   Lmat = lapmat(DS)
+   ompad = np.pad(qgomega, ((1, 1), (1, 1), (0, 0)), 'constant', constant_values=0.)
+   ompad = xr.DataArray(ompad, coords=[DS.level, DS.lat, DS.lon], dims=['level', 'lat', 'lon'])
+   print(ompad.shape)
+   diver = -d_dp(ompad, dp)
+   print(diver.shape)
+   divervec = np.reshape(diver, (l-1)*(m+1)*(n+1), order='C') #vectorize divergence (last axis changing fastest in level,lat,lon)
+   Lmat = lapmat(DS, latm=1)
    vpot = spsolve(Lmat, divervec)
-   vpot = np.reshape(vpot, (l-1, m-1, n+1), order='C')
+   vpot = np.reshape(vpot, (l-1, m+1, n+1), order='C')
    uag, vag = grad(vpot, DS.dx)
 
-   outds = xr.Dataset(data_vars=dict(OMEGAQG=qgomega, OMEGA=DS.OMEGA, FORCING=qgforcing, FORCETA=forceTA, FORCEVA=forceVA, UAG=uag, VAG=vag))
-   outds = outds.fillna(0)
+   outds = outds.assign(variables=dict(UAG=uag, VAG=vag))
    outds.to_netcdf(path='QGomega.nc') 
 
 
@@ -153,7 +161,7 @@ def d_dp(var, dp):
    l = var.level.shape[0] - 1
    slcup = slice(2, l+1)
    slcdown = slice(0, l-1)
-   return (var[slcdown,:,:] - var[slcup,:,:]) / (2*dp)
+   return (var.values[slcdown,:,:] - var.values[slcup,:,:]) / (2*dp)
 
 def lapl(var, dx):
    #horizonal Laplacian of a DataArray using a centered 2nd derivative (periodic in lon, interior of domain in lat)
@@ -221,16 +229,18 @@ def absvort(DS):
    planvort = 2 * OMEGArot * np.sin(DS.lat*np.pi/180)
    return relvort + planvort.values[None,:,None]
 
-def lapmat(DS):
+def lapmat(DS, latm=-1):
    #construct a matrix representation of the horizontal Laplacian
    l = DS.level.shape[0] - 1
-   m = DS.lat.shape[0] - 1
+   m = DS.lat.shape[0] + latm
    n = DS.lon.shape[0] - 1
    slcpmid = slice(1,l)
    slclatmid = slice(1,m)
-   sz = (l-1)*(m-1)*(n+1)
+   sz = (l-1)*(m+latm)*(n+1)
 
    dxvec = DS.dx.values[None,slclatmid,None]
+   if latm == 1:
+      dxvec = DS.dx.values
    dxvec = np.repeat(dxvec, l-1, axis=0)
    dxvec = np.repeat(dxvec, n+1, axis=2)
    dxvec = np.reshape(dxvec, sz, order='C')
