@@ -53,16 +53,16 @@ def main():
    '''
 
    forceTA = qgTA(DS)
-   tattile = 'QG $\omega$ Temp Adv Forcing %d hPa %s' % (int(LLEV), str(DS.time.values))
+   tatitle = 'QG $\omega$ Temp Adv Forcing %d hPa %s' % (int(LLEV), str(DS.time.values))
    plotmap(forceTA, LLEV, BNDS, tatitle, '$Pa \hspace{0.5} m^{-2} \hspace{0.5} s^{-1}$', 'TAforcing.png')
 
    forceVA = qgVA(DS)
    vatitle = 'QG $\omega$ Diff Vort Adv Forcing %d hPa %s' % (int(ULEV), str(DS.time.values))
-   plotmap(forceVA, ULEV, BNDS, vatitle, '$Pa \hspace{0.5} m^{-2} \hspace{0.5} s^{-1}$', 'DVAforcing.png')
+   plotmap(forceVA, ULEV, BNDS, vatitle, '$Pa \hspace{0.5} m^{-2} \hspace{0.5} s^{-1}$', 'DVAforcing.png', norm=colors.TwoSlopeNorm(vcenter=0))
 
    qgforcing = forceTA + forceVA
    frctitle = 'QG $\omega$ Total Forcing (DVA + TA) %d hPa %s' % (int(ULEV), str(DS.time.values))
-   plotmap(qgforcing, ULEV, BNDS, frctitle, '$Pa \hspace{0.5} m^{-2} \hspace{0.5} s^{-1}$', 'QGforcing.png')
+   plotmap(qgforcing, ULEV, BNDS, frctitle, '$Pa \hspace{0.5} m^{-2} \hspace{0.5} s^{-1}$', 'QGforcing.png', norm=colors.TwoSlopeNorm(vcenter=0))
 
    l = qgforcing.shape[0] + 1
    m = qgforcing.shape[1] + 1
@@ -78,6 +78,7 @@ def main():
       if j == m-1:
          forcevec[r] -= DS.OMEGA.values[i, m, k] / dy**2
 
+   print('Generating A matrix...')
    A = matLHS(DS)
    plt.spy(A[:3000,:3000])
    plt.savefig('matrix.png')
@@ -90,15 +91,19 @@ def main():
    omegatitle = 'Colors: $\omega_{QG}$ (forcing by DVA + TA) %d hPa %s\nContours: Reanalysis $\omega \hspace{0.5} [Pa \hspace{0.5} s^{-1}]$' % (int(ULEV), str(DS.time.values))
    clabelkwargs = {'inline': 1, 'fontsize': 10, 'colors': 'black', 'fmt': '%.1f'}
    contourkwargs = {'colors': 'black', 'transform': ccrs.PlateCarree(), 'levels': np.arange(-5, 5.1, 0.2)}
-   plotmap(qgomega, ULEV, BNDS, omegatitle, '$Pa \hspace{0.5} s^{-1}$', 'QGomega.png', contour=True, cntda=DS.OMEGA, clabelkwargs=clabelkwargs, contourkwargs=contourkwargs)
-
-   outds = xr.Dataset(data_vars=dict(OMEGAQG=qgomega, OMEGA=DS.OMEGA, FORCING=qgforcing, FORCETA=forceTA, FORCEVA=forceVA))
-   outds = outds.fillna(0)
-   outds.to_netcdf(path='QGomega.nc')
+   plotmap(qgomega, ULEV, BNDS, omegatitle, '$Pa \hspace{0.5} s^{-1}$', 'QGomega.png', norm=colors.TwoSlopeNorm(vcenter=0), contour=True, cntda=DS.OMEGA, clabelkwargs=clabelkwargs, contourkwargs=contourkwargs)
 
    qgerror = qgomega - DS.OMEGA
    errtitle = 'QG Error (QG $\omega$ minus Reanalysis) %d hPa %s' % (int(ULEV), str(DS.time.values))
-   plotmap(qgerror, ULEV, BNDS, errtitle, '$Pa \hspace{0.5} s^{-1}$', 'QGerror.png', cmap='bwr')
+   plotmap(qgerror, ULEV, BNDS, errtitle, '$Pa \hspace{0.5} s^{-1}$', 'QGerror.png', cmap='bwr', norm=colors.TwoSlopeNorm(vcenter=0))
+
+   print('Computing ageo winds...')
+   diver = d_dp(qgomega, dp)
+   divervec = np.reshape(diver.values, (l-1)*(m-1)*(n+1), order='C') #vectorize divergence (last axis changing fastest in level,lat,lon)
+
+   outds = xr.Dataset(data_vars=dict(OMEGAQG=qgomega, OMEGA=DS.OMEGA, FORCING=qgforcing, FORCETA=forceTA, FORCEVA=forceVA))
+   outds = outds.fillna(0)
+   outds.to_netcdf(path='QGomega.nc') 
 
 
 def plotmap(da, plev, extent, title, cbarlabel, outfile, figsize=(10,7), cmap='BrBG_r', levels=15, norm=colors.TwoSlopeNorm(vcenter=0), contour=False, cntda=None, clabelkwargs=None, contourkwargs=None):
@@ -138,6 +143,13 @@ def qgTA(DS):
    m = DS.lat.shape[0] - 1
    slcpmid, slclatmid = slice(1, l), slice(1, m)
    return Rd / DS.sigma[slcpmid,slclatmid,:] / DS.level[slcpmid] / 100 * lapl(negTA(DS), DS.dx)[slcpmid,:,:]
+
+def d_dp(var, dp):
+   #simple vertical (pressure) derivative
+   l = var.level.shape[0] - 1
+   slcup = slice(2, l+1)
+   slcdown = slice(0, l-1)
+   return (var[slcdown,:,:] - var[slcup,:,:]) / (2*dp)
 
 def lapl(var, dx):
    #horizonal Laplacian of a DataArray using a centered 2nd derivative (periodic in lon, interior of domain in lat)
