@@ -87,7 +87,6 @@ def main():
    print('Solving BVP...')
    omegavec = spsolve(A, forcevec)
    omegavec = np.reshape(omegavec, (l-1, m-1, n+1), order='C')
-   print(omegavec.shape)
 
    qgomega = xr.DataArray(omegavec, coords = qgforcing.coords, dims = qgforcing.dims)
    omegatitle = 'Colors: $\omega_{QG}$ (forcing by DVA + TA) %d hPa %s\nContours: Reanalysis $\omega \hspace{0.5} [Pa \hspace{0.5} s^{-1}]$' % (int(ULEV), str(DS.time.values))
@@ -105,13 +104,13 @@ def main():
    print('Computing ageo winds...')
    ompad = np.pad(qgomega, ((1, 1), (1, 1), (0, 0)), 'constant', constant_values=0.)
    ompad = xr.DataArray(ompad, coords=[DS.level, DS.lat, DS.lon], dims=['level', 'lat', 'lon'])
-   print(ompad.shape)
    diver = -d_dp(ompad, dp)
-   print(diver.shape)
    divervec = np.reshape(diver, (l-1)*(m+1)*(n+1), order='C') #vectorize divergence (last axis changing fastest in level,lat,lon)
-   Lmat = lapmat(DS, latm=1)
+   Lmat = lapmat(DS, latm=0)
    vpot = spsolve(Lmat, divervec)
+   print(l, m, n, vpot.shape)
    vpot = np.reshape(vpot, (l-1, m+1, n+1), order='C')
+   vpot = xr.DataArray(vpot, coords=[DS.level[1:-1], DS.lat, DS.lon], dims=['level', 'lat', 'lon'])
    uag, vag = grad(vpot, DS.dx)
 
    outds = outds.assign(variables=dict(UAG=uag, VAG=vag))
@@ -239,10 +238,11 @@ def lapmat(DS, latm=-1):
    sz = (l-1)*(m+latm)*(n+1)
 
    dxvec = DS.dx.values[None,slclatmid,None]
-   if latm == 1:
-      dxvec = DS.dx.values
+   if latm == 0:
+      dxvec = DS.dx.values[None,:,None]
    dxvec = np.repeat(dxvec, l-1, axis=0)
    dxvec = np.repeat(dxvec, n+1, axis=2)
+   print(l, m, n, dxvec.shape)
    dxvec = np.reshape(dxvec, sz, order='C')
 
    L = np.zeros((sz,sz), dtype=np.float64)
