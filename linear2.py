@@ -6,12 +6,13 @@
 
 import xarray as xr
 import numpy as np
+from scipy.sparse.linalg import spsolve
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 import cartopy.crs as ccrs
 
 DATADIR = './reanalysis/'
-YEAR = '2018'
+YEAR = '2016'
 
 Rd = 287.06 #J kg-1 K-1
 a = 6.371e6 #m
@@ -19,9 +20,12 @@ f0 = 1.031e-4 #s-1
 cp = 1004 #J kg-1 K-1
 OMEGArot = 7.29e-5 #s-1
 
-dp = 1e4 #Pa
+dp = 7.5e3 #Pa
 dy = a * 2.5*np.pi/180 #m
 dlamb = 2.5*np.pi/180 #rad
+
+ULEV = 550.
+LLEV = 700.
 
 def main():
    U = xr.open_dataset('%suwnd.%s.nc' % (DATADIR, YEAR)).uwnd
@@ -29,9 +33,9 @@ def main():
    T = xr.open_dataset('%sair.%s.nc' % (DATADIR, YEAR)).air
    OMEGA = xr.open_dataset('%somega.%s.nc' % (DATADIR, YEAR)).omega
    DS = xr.Dataset(data_vars = {'U': U, 'V': V, 'T': T, 'OMEGA': OMEGA})
-   DS = DS.sel(lat=slice(62.5, 27.4))
-   DS = DS.reindex(lat = DS.lat.values[::-1]).fillna(0).sel(time = DS.time.values[1200])
-   DS = DS.interp(level=np.arange(1000,99,-100.))
+   DS = DS.sel(lat=slice(75., 27.4))
+   DS = DS.reindex(lat = DS.lat.values[::-1]).fillna(0).sel(time = DS.time.values[90])
+   DS = DS.interp(level=np.arange(1000,99,-dp/100))
    DS = DS.assign(dx=lambda x: a * np.cos(x.lat*np.pi/180) * dlamb)
    DS = DS.assign(sigma=lambda x: sigmastab(x))
 
@@ -51,10 +55,10 @@ def main():
    fig, ax = plt.subplots(figsize=(10,7), subplot_kw=dict(projection=ccrs.PlateCarree()))
    ax.set_extent([220, 310, 30, 60])
    ax.coastlines()
-   cs = ax.contourf(forceTA.coords['lon'].values, forceTA.coords['lat'].values, forceTA.sel(level=700).values, cmap = 'BrBG', norm=colors.TwoSlopeNorm(vcenter=0))
+   cs = ax.contourf(forceTA.coords['lon'].values, forceTA.coords['lat'].values, forceTA.sel(level=LLEV).values, cmap = 'BrBG', norm=colors.TwoSlopeNorm(vcenter=0))
    cbar = fig.colorbar(cs, shrink=0.7, orientation='horizontal')
    cbar.set_label('$Pa \hspace{0.5} m^{-2} \hspace{0.5} s^{-1}$')
-   plt.title('QG $\omega$ Temp Adv Forcing 700 hPa %s' % str(DS.time.values))
+   plt.title('QG $\omega$ Temp Adv Forcing %d hPa %s' % (int(LLEV), str(DS.time.values)))
    plt.savefig('TAforcing.png', bbox_inches='tight')
    plt.close()
 
@@ -62,10 +66,10 @@ def main():
    fig, ax = plt.subplots(figsize=(10,7), subplot_kw=dict(projection=ccrs.PlateCarree()))
    ax.set_extent([220, 310, 30, 60])
    ax.coastlines()
-   cs = ax.contourf(forceVA.coords['lon'].values, forceVA.coords['lat'].values, forceVA.sel(level=500).values, cmap = 'BrBG', norm=colors.TwoSlopeNorm(vcenter=0))
+   cs = ax.contourf(forceVA.coords['lon'].values, forceVA.coords['lat'].values, forceVA.sel(level=ULEV).values, cmap = 'BrBG', norm=colors.TwoSlopeNorm(vcenter=0))
    cbar = fig.colorbar(cs, shrink=0.7, orientation='horizontal')
    cbar.set_label('$Pa \hspace{0.5} m^{-2} \hspace{0.5} s^{-1}$')
-   plt.title('QG $\omega$ Diff Vort Adv Forcing 500 hPa %s' % str(DS.time.values))
+   plt.title('QG $\omega$ Diff Vort Adv Forcing %d hPa %s' % (int(ULEV), str(DS.time.values)))
    plt.savefig('DVAforcing.png', bbox_inches='tight')
    plt.close()
 
@@ -73,10 +77,10 @@ def main():
    fig, ax = plt.subplots(figsize=(10,7), subplot_kw=dict(projection=ccrs.PlateCarree()))
    ax.set_extent([220, 310, 30, 60])
    ax.coastlines()
-   cs = ax.contourf(qgforcing.coords['lon'].values, qgforcing.coords['lat'].values, qgforcing.sel(level=500).values, cmap = 'BrBG', norm=colors.TwoSlopeNorm(vcenter=0))
+   cs = ax.contourf(qgforcing.coords['lon'].values, qgforcing.coords['lat'].values, qgforcing.sel(level=ULEV).values, cmap = 'BrBG', norm=colors.TwoSlopeNorm(vcenter=0))
    cbar = fig.colorbar(cs, shrink=0.7, orientation='horizontal')
    cbar.set_label('$Pa \hspace{0.5} m^{-2} \hspace{0.5} s^{-1}$')
-   plt.title('QG $\omega$ Total Forcing (DVA + TA) 500 hPa %s' % str(DS.time.values))
+   plt.title('QG $\omega$ Total Forcing (DVA + TA) %d hPa %s' % (int(ULEV), str(DS.time.values)))
    plt.savefig('QGforcing.png', bbox_inches='tight')
    plt.close()
 
@@ -98,7 +102,8 @@ def main():
    plt.spy(A[:3000,:3000])
    plt.savefig('matrix.png')
    plt.close()
-   omegavec = np.linalg.solve(A, forcevec)
+   print('Solving BVP...')
+   omegavec = spsolve(A, forcevec)
    omegavec = np.reshape(omegavec, (l-1, m-1, n+1), order='C')
 
    qgomega = xr.DataArray(omegavec, coords = qgforcing.coords, dims = qgforcing.dims)
@@ -107,12 +112,12 @@ def main():
    fig, ax = plt.subplots(figsize=(10,7), subplot_kw=dict(projection=ccrs.PlateCarree()))
    ax.set_extent([220, 310, 30, 60])
    ax.coastlines()
-   cs = ax.contourf(qgomega.coords['lon'].values, qgomega.coords['lat'].values, qgomega.sel(level=500).values, cmap = 'BrBG_r', levels=15, norm=colors.TwoSlopeNorm(vcenter=0))
+   cs = ax.contourf(qgomega.coords['lon'].values, qgomega.coords['lat'].values, qgomega.sel(level=ULEV).values, cmap = 'BrBG_r', levels=15, norm=colors.TwoSlopeNorm(vcenter=0))
    cbar = fig.colorbar(cs, shrink=0.7, orientation='horizontal')
    cbar.set_label('$Pa \hspace{0.5} s^{-1}$')
-   cs1 = ax.contour(DS.lon.values, DS.lat.values, DS.OMEGA.sel(level=500).values, **contourkwargs)
+   cs1 = ax.contour(DS.lon.values, DS.lat.values, DS.OMEGA.sel(level=ULEV).values, **contourkwargs)
    ax.clabel(cs1, **clabelkwargs)
-   plt.title('Colors: $\omega_{QG}$ (forcing by DVA + TA) 500 hPa %s\nContours: Reanalysis $\omega \hspace{0.5} [Pa \hspace{0.5} s^{-1}]$' % str(DS.time.values))
+   plt.title('Colors: $\omega_{QG}$ (forcing by DVA + TA) %d hPa %s\nContours: Reanalysis $\omega \hspace{0.5} [Pa \hspace{0.5} s^{-1}]$' % (int(ULEV), str(DS.time.values)))
    plt.savefig('QGomega.png', bbox_inches='tight')
    plt.close()
 
@@ -124,11 +129,20 @@ def main():
    fig, ax = plt.subplots(figsize=(10,7), subplot_kw=dict(projection=ccrs.PlateCarree()))
    ax.set_extent([220, 310, 30, 60])
    ax.coastlines()
-   cs = ax.contourf(qgerror.coords['lon'].values, qgerror.coords['lat'].values, qgerror.sel(level=500).values, cmap = 'bwr', norm=colors.TwoSlopeNorm(vcenter=0))
+   cs = ax.contourf(qgerror.coords['lon'].values, qgerror.coords['lat'].values, qgerror.sel(level=ULEV).values, cmap = 'bwr', norm=colors.TwoSlopeNorm(vcenter=0))
    cbar = fig.colorbar(cs, shrink=0.7, orientation='horizontal')
    cbar.set_label('$Pa \hspace{0.5} s^{-1}$')
-   plt.title('QG Error (QG $\omega$ minus Reanalysis) 500 hPa %s' % str(DS.time.values))
+   plt.title('QG Error (QG $\omega$ minus Reanalysis) %d hPa %s' % (int(ULEV), str(DS.time.values)))
    plt.savefig('QGerror.png', bbox_inches='tight')
+   plt.close()
+
+def plotmap(da, plev, extent, title, outfile, figsize=(10,7), cmap='BrBG_r', levels=15, norm=colors.TwoSlopeNorm(vcenter=0), contour=False, clabelkwargs=None, contourkwargs=None):
+   fig, ax = plt.subplots(figsize=figsize, subplot_kw=dict(projection=ccrs.PlateCarree()))
+   ax.set_extent(extent)
+   ax.coastlines()
+   cs = ax.contourf(da.lon, da.lat, da.sel(level=plev).values, cmap=cmap, levels=levels, norm=norm)
+   cbar = fig.colorbar(cs, shrink=0.7, orientation='horizontal')
+   cbar.set_label('$Pa \hspace{0.5} s^{-1}$')
    plt.close()
 
 def sigmastab(DS):
