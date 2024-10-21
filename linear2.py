@@ -98,10 +98,14 @@ def main():
    plotmap(qgerror, ULEV, BNDS, errtitle, '$Pa \hspace{0.5} s^{-1}$', 'QGerror.png', cmap='bwr', norm=colors.TwoSlopeNorm(vcenter=0))
 
    print('Computing ageo winds...')
-   diver = d_dp(qgomega, dp)
+   diver = -d_dp(qgomega, dp)
    divervec = np.reshape(diver.values, (l-1)*(m-1)*(n+1), order='C') #vectorize divergence (last axis changing fastest in level,lat,lon)
+   Lmat = lapmat(DS)
+   vpot = spsolve(Lmat, divervec)
+   vpot = np.reshape(vpot, (l-1, m-1, n+1), order='C')
+   uag, vag = grad(vpot, DS.dx)
 
-   outds = xr.Dataset(data_vars=dict(OMEGAQG=qgomega, OMEGA=DS.OMEGA, FORCING=qgforcing, FORCETA=forceTA, FORCEVA=forceVA))
+   outds = xr.Dataset(data_vars=dict(OMEGAQG=qgomega, OMEGA=DS.OMEGA, FORCING=qgforcing, FORCETA=forceTA, FORCEVA=forceVA, UAG=uag, VAG=vag))
    outds = outds.fillna(0)
    outds.to_netcdf(path='QGomega.nc') 
 
@@ -217,6 +221,38 @@ def absvort(DS):
    planvort = 2 * OMEGArot * np.sin(DS.lat*np.pi/180)
    return relvort + planvort.values[None,:,None]
 
+def lapmat(DS):
+   #construct a matrix representation of the horizontal Laplacian
+   l = DS.level.shape[0] - 1
+   m = DS.lat.shape[0] - 1
+   n = DS.lon.shape[0] - 1
+   slcpmid = slice(1,l)
+   slclatmid = slice(1,m)
+   sz = (l-1)*(m-1)*(n+1)
+
+   dxvec = DS.dx.values[None,slclatmid,None]
+   dxvec = np.repeat(dxvec, l-1, axis=0)
+   dxvec = np.repeat(dxvec, n+1, axis=2)
+   dxvec = np.reshape(dxvec, sz, order='C')
+
+   L = np.zeros((sz,sz), dtype=np.float64)
+   for r in range(sz):
+      ir, jr, kr = idx1Dto3D(r, l, m, n)
+      for c in range(sz):
+         ic, jc, kc = idx1Dto3D(c, l, m, n)
+         if ic == ir and kc == kr and abs(jc-jr) == 1:
+            L[r,c] = 1/dy**2
+         if ir == ic and jr == jc and abs(kc-kr) == 1:
+            L[r,c] = 1/dxvec[r]**2
+         if r == c:
+            L[r,c] = -2/dxvec[r]**2 - 2/dy**2
+
+         #handle periodic BCs
+         if (kr == 0 and kc == n) or (kr == n and kc == 0):
+            L[r,c] = 1/dxvec[r]**2
+
+   return L
+
 def matLHS(DS):
    #construct a matrix representation of the differential operators on the left-hand side of the QG omega equation
    l = DS.level.shape[0] - 1
@@ -232,25 +268,16 @@ def matLHS(DS):
    dxvec = np.repeat(dxvec, n+1, axis=2)
    dxvec = np.reshape(dxvec, sz, order='C')
 
-   A = np.zeros((sz,sz), dtype=np.float64)
+   A = lapmat(DS) #np.zeros((sz,sz), dtype=np.float64)
    for r in range(sz):
       ir, jr, kr = idx1Dto3D(r, l, m, n)
       for c in range(sz):
          ic, jc, kc = idx1Dto3D(c, l, m, n)
          if jc == jr and kc == kr and abs(ic-ir) == 1:
             A[r,c] = (f0 / dp)**2 / sigmavec[r]
-         if ic == ir and kc == kr and abs(jc-jr) == 1:
-            A[r,c] = 1/dy**2
-         if ir == ic and jr == jc and abs(kc-kr) == 1:
-            A[r,c] = 1/dxvec[r]**2
          if r == c:
             #print(f0, sigmavec[r], dp)
-            A[r,c] = -2/dxvec[r]**2 - 2/dy**2 - 2*(f0 / dp)**2/sigmavec[r]
-            #print(A[r,c])
-
-         #handle periodic BCs
-         if (kr == 0 and kc == n) or (kr == n and kc == 0):
-            A[r,c] = 1/dxvec[r]**2
+            A[r,c] += -2*(f0 / dp)**2/sigmavec[r]
 
    return A
 
