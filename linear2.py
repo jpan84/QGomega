@@ -26,6 +26,7 @@ dlamb = 2.5*np.pi/180 #rad
 
 ULEV = 550.
 LLEV = 700.
+BNDS = [220, 310, 30, 60]
 
 def main():
    U = xr.open_dataset('%suwnd.%s.nc' % (DATADIR, YEAR)).uwnd
@@ -52,37 +53,16 @@ def main():
    '''
 
    forceTA = qgTA(DS)
-   fig, ax = plt.subplots(figsize=(10,7), subplot_kw=dict(projection=ccrs.PlateCarree()))
-   ax.set_extent([220, 310, 30, 60])
-   ax.coastlines()
-   cs = ax.contourf(forceTA.coords['lon'].values, forceTA.coords['lat'].values, forceTA.sel(level=LLEV).values, cmap = 'BrBG', norm=colors.TwoSlopeNorm(vcenter=0))
-   cbar = fig.colorbar(cs, shrink=0.7, orientation='horizontal')
-   cbar.set_label('$Pa \hspace{0.5} m^{-2} \hspace{0.5} s^{-1}$')
-   plt.title('QG $\omega$ Temp Adv Forcing %d hPa %s' % (int(LLEV), str(DS.time.values)))
-   plt.savefig('TAforcing.png', bbox_inches='tight')
-   plt.close()
+   tattile = 'QG $\omega$ Temp Adv Forcing %d hPa %s' % (int(LLEV), str(DS.time.values))
+   plotmap(forceTA, LLEV, BNDS, tatitle, '$Pa \hspace{0.5} m^{-2} \hspace{0.5} s^{-1}$', 'TAforcing.png')
 
    forceVA = qgVA(DS)
-   fig, ax = plt.subplots(figsize=(10,7), subplot_kw=dict(projection=ccrs.PlateCarree()))
-   ax.set_extent([220, 310, 30, 60])
-   ax.coastlines()
-   cs = ax.contourf(forceVA.coords['lon'].values, forceVA.coords['lat'].values, forceVA.sel(level=ULEV).values, cmap = 'BrBG', norm=colors.TwoSlopeNorm(vcenter=0))
-   cbar = fig.colorbar(cs, shrink=0.7, orientation='horizontal')
-   cbar.set_label('$Pa \hspace{0.5} m^{-2} \hspace{0.5} s^{-1}$')
-   plt.title('QG $\omega$ Diff Vort Adv Forcing %d hPa %s' % (int(ULEV), str(DS.time.values)))
-   plt.savefig('DVAforcing.png', bbox_inches='tight')
-   plt.close()
+   vatitle = 'QG $\omega$ Diff Vort Adv Forcing %d hPa %s' % (int(ULEV), str(DS.time.values))
+   plotmap(forceVA, ULEV, BNDS, vatitle, '$Pa \hspace{0.5} m^{-2} \hspace{0.5} s^{-1}$', 'DVAforcing.png')
 
    qgforcing = forceTA + forceVA
-   fig, ax = plt.subplots(figsize=(10,7), subplot_kw=dict(projection=ccrs.PlateCarree()))
-   ax.set_extent([220, 310, 30, 60])
-   ax.coastlines()
-   cs = ax.contourf(qgforcing.coords['lon'].values, qgforcing.coords['lat'].values, qgforcing.sel(level=ULEV).values, cmap = 'BrBG', norm=colors.TwoSlopeNorm(vcenter=0))
-   cbar = fig.colorbar(cs, shrink=0.7, orientation='horizontal')
-   cbar.set_label('$Pa \hspace{0.5} m^{-2} \hspace{0.5} s^{-1}$')
-   plt.title('QG $\omega$ Total Forcing (DVA + TA) %d hPa %s' % (int(ULEV), str(DS.time.values)))
-   plt.savefig('QGforcing.png', bbox_inches='tight')
-   plt.close()
+   frctitle = 'QG $\omega$ Total Forcing (DVA + TA) %d hPa %s' % (int(ULEV), str(DS.time.values))
+   plotmap(qgforcing, ULEV, BNDS, frctitle, '$Pa \hspace{0.5} m^{-2} \hspace{0.5} s^{-1}$', 'QGforcing.png')
 
    l = qgforcing.shape[0] + 1
    m = qgforcing.shape[1] + 1
@@ -107,42 +87,32 @@ def main():
    omegavec = np.reshape(omegavec, (l-1, m-1, n+1), order='C')
 
    qgomega = xr.DataArray(omegavec, coords = qgforcing.coords, dims = qgforcing.dims)
-   clabelkwargs = {'inline': 1, 'fontsize': 10, 'colors': 'black'}
+   omegatitle = 'Colors: $\omega_{QG}$ (forcing by DVA + TA) %d hPa %s\nContours: Reanalysis $\omega \hspace{0.5} [Pa \hspace{0.5} s^{-1}]$' % (int(ULEV), str(DS.time.values))
+   clabelkwargs = {'inline': 1, 'fontsize': 10, 'colors': 'black', 'fmt': '%.1f'}
    contourkwargs = {'colors': 'black', 'transform': ccrs.PlateCarree(), 'levels': np.arange(-5, 5.1, 0.2)}
-   fig, ax = plt.subplots(figsize=(10,7), subplot_kw=dict(projection=ccrs.PlateCarree()))
-   ax.set_extent([220, 310, 30, 60])
-   ax.coastlines()
-   cs = ax.contourf(qgomega.coords['lon'].values, qgomega.coords['lat'].values, qgomega.sel(level=ULEV).values, cmap = 'BrBG_r', levels=15, norm=colors.TwoSlopeNorm(vcenter=0))
-   cbar = fig.colorbar(cs, shrink=0.7, orientation='horizontal')
-   cbar.set_label('$Pa \hspace{0.5} s^{-1}$')
-   cs1 = ax.contour(DS.lon.values, DS.lat.values, DS.OMEGA.sel(level=ULEV).values, **contourkwargs)
-   ax.clabel(cs1, **clabelkwargs)
-   plt.title('Colors: $\omega_{QG}$ (forcing by DVA + TA) %d hPa %s\nContours: Reanalysis $\omega \hspace{0.5} [Pa \hspace{0.5} s^{-1}]$' % (int(ULEV), str(DS.time.values)))
-   plt.savefig('QGomega.png', bbox_inches='tight')
-   plt.close()
+   plotmap(qgomega, ULEV, BNDS, omegatitle, '$Pa \hspace{0.5} s^{-1}$', 'QGomega.png', contour=True, cntda=DS.OMEGA, clabelkwargs=clabelkwargs, contourkwargs=contourkwargs)
 
    outds = xr.Dataset(data_vars=dict(OMEGAQG=qgomega, OMEGA=DS.OMEGA, FORCING=qgforcing, FORCETA=forceTA, FORCEVA=forceVA))
    outds = outds.fillna(0)
    outds.to_netcdf(path='QGomega.nc')
 
    qgerror = qgomega - DS.OMEGA
-   fig, ax = plt.subplots(figsize=(10,7), subplot_kw=dict(projection=ccrs.PlateCarree()))
-   ax.set_extent([220, 310, 30, 60])
-   ax.coastlines()
-   cs = ax.contourf(qgerror.coords['lon'].values, qgerror.coords['lat'].values, qgerror.sel(level=ULEV).values, cmap = 'bwr', norm=colors.TwoSlopeNorm(vcenter=0))
-   cbar = fig.colorbar(cs, shrink=0.7, orientation='horizontal')
-   cbar.set_label('$Pa \hspace{0.5} s^{-1}$')
-   plt.title('QG Error (QG $\omega$ minus Reanalysis) %d hPa %s' % (int(ULEV), str(DS.time.values)))
-   plt.savefig('QGerror.png', bbox_inches='tight')
-   plt.close()
+   errtitle = 'QG Error (QG $\omega$ minus Reanalysis) %d hPa %s' % (int(ULEV), str(DS.time.values))
+   plotmap(qgerror, ULEV, BNDS, errtitle, '$Pa \hspace{0.5} s^{-1}$', 'QGerror.png', cmap='bwr')
 
-def plotmap(da, plev, extent, title, outfile, figsize=(10,7), cmap='BrBG_r', levels=15, norm=colors.TwoSlopeNorm(vcenter=0), contour=False, clabelkwargs=None, contourkwargs=None):
+
+def plotmap(da, plev, extent, title, cbarlabel, outfile, figsize=(10,7), cmap='BrBG_r', levels=15, norm=colors.TwoSlopeNorm(vcenter=0), contour=False, cntda=None, clabelkwargs=None, contourkwargs=None):
    fig, ax = plt.subplots(figsize=figsize, subplot_kw=dict(projection=ccrs.PlateCarree()))
    ax.set_extent(extent)
    ax.coastlines()
    cs = ax.contourf(da.lon, da.lat, da.sel(level=plev).values, cmap=cmap, levels=levels, norm=norm)
    cbar = fig.colorbar(cs, shrink=0.7, orientation='horizontal')
-   cbar.set_label('$Pa \hspace{0.5} s^{-1}$')
+   cbar.set_label(cbarlabel)
+   if contour:
+      cs1 = ax.contour(cntda.lon, cntda.lat, cntda.sel(level=ULEV).values, **contourkwargs)
+      ax.clabel(cs1, **clabelkwargs)
+   plt.title(title)
+   plt.savefig(outfile, bbox_inches='tight')
    plt.close()
 
 def sigmastab(DS):
