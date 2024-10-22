@@ -32,10 +32,11 @@ def main():
    U = xr.open_dataset('%suwnd.%s.nc' % (DATADIR, YEAR)).uwnd
    V = xr.open_dataset('%svwnd.%s.nc' % (DATADIR, YEAR)).vwnd
    T = xr.open_dataset('%sair.%s.nc' % (DATADIR, YEAR)).air
+   Z = xr.open_dataset('%shgt.%s.nc' % (DATADIR, YEAR)).hgt
    OMEGA = xr.open_dataset('%somega.%s.nc' % (DATADIR, YEAR)).omega
-   DS = xr.Dataset(data_vars = {'U': U, 'V': V, 'T': T, 'OMEGA': OMEGA})
+   DS = xr.Dataset(data_vars = {'U': U, 'V': V, 'T': T, 'Z': Z, 'OMEGA': OMEGA})
    DS = DS.sel(lat=slice(75., 27.4))
-   DS = DS.reindex(lat = DS.lat.values[::-1]).fillna(0).sel(time = DS.time.values[90])
+   DS = DS.reindex(lat = DS.lat.values[::-1]).fillna(0).sel(time = DS.time.values[1328])
    DS = DS.interp(level=np.arange(1000,99,-dp/100))
    DS = DS.assign(dx=lambda x: a * np.cos(x.lat*np.pi/180) * dlamb)
    DS = DS.assign(sigma=lambda x: sigmastab(x))
@@ -92,13 +93,13 @@ def main():
    omegatitle = 'Colors: $\omega_{QG}$ (forcing by DVA + TA) %d hPa %s\nContours: Reanalysis $\omega \hspace{0.5} [Pa \hspace{0.5} s^{-1}]$' % (int(ULEV), str(DS.time.values))
    clabelkwargs = {'inline': 1, 'fontsize': 10, 'colors': 'black', 'fmt': '%.1f'}
    contourkwargs = {'colors': 'black', 'transform': ccrs.PlateCarree(), 'levels': np.arange(-5, 5.1, 0.2)}
-   plotmap(qgomega, ULEV, BNDS, omegatitle, '$Pa \hspace{0.5} s^{-1}$', 'QGomega.png', norm=colors.TwoSlopeNorm(vcenter=0), contour=True, cntda=DS.OMEGA, clabelkwargs=clabelkwargs, contourkwargs=contourkwargs)
+   plotmap(qgomega, ULEV, BNDS, omegatitle, '$Pa \hspace{0.5} s^{-1}$', 'QGomega.png', cmap='BrBG_r', norm=colors.TwoSlopeNorm(vcenter=0), contour=True, cntda=DS.OMEGA, clabelkwargs=clabelkwargs, contourkwargs=contourkwargs)
 
    qgerror = qgomega - DS.OMEGA
    errtitle = 'QG Error (QG $\omega$ minus Reanalysis) %d hPa %s' % (int(ULEV), str(DS.time.values))
    plotmap(qgerror, ULEV, BNDS, errtitle, '$Pa \hspace{0.5} s^{-1}$', 'QGerror.png', cmap='bwr', norm=colors.TwoSlopeNorm(vcenter=0))
 
-   outds = xr.Dataset(data_vars=dict(OMEGAQG=qgomega, OMEGA=DS.OMEGA, FORCING=qgforcing, FORCETA=forceTA, FORCEVA=forceVA))
+   outds = xr.Dataset(data_vars=dict(OMEGAQG=qgomega, OMEGA=DS.OMEGA, TEMP=DS.T, HGT=DS.Z, FORCING=qgforcing, FORCETA=forceTA, FORCEVA=forceVA))
    outds = outds.fillna(0)
 
    print('Computing ageo winds...')
@@ -119,7 +120,7 @@ def main():
    outds.to_netcdf(path='QGomega.nc') 
 
 
-def plotmap(da, plev, extent, title, cbarlabel, outfile, figsize=(10,7), cmap='BrBG_r', levels=15, norm=colors.TwoSlopeNorm(vcenter=0), contour=False, cntda=None, clabelkwargs=None, contourkwargs=None):
+def plotmap(da, plev, extent, title, cbarlabel, outfile, figsize=(10,7), cmap='BrBG', levels=15, norm=colors.TwoSlopeNorm(vcenter=0), contour=False, cntda=None, clabelkwargs=None, contourkwargs=None):
    fig, ax = plt.subplots(figsize=figsize, subplot_kw=dict(projection=ccrs.PlateCarree()))
    ax.set_extent(extent)
    ax.coastlines()
