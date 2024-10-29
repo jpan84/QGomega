@@ -26,7 +26,8 @@ dp = 7.5e3 #Pa
 dy = a * 2.5*np.pi/180 #m
 dlamb = 2.5*np.pi/180 #rad
 
-ULEV = 550.
+ULEV = 250.
+MLEV = 550.
 LLEV = 700.
 BNDS = [220, 310, 30, 60]
 
@@ -68,12 +69,12 @@ def main():
    plotmap(forceTA, LLEV, BNDS, tatitle, '$Pa \hspace{0.5} m^{-2} \hspace{0.5} s^{-1}$', 'TAforcing.png')
 
    forceVA = qgVA(DS)
-   vatitle = 'QG $\omega$ Diff Vort Adv Forcing %d hPa %s' % (int(ULEV), str(DS.time.values))
-   plotmap(forceVA, ULEV, BNDS, vatitle, '$Pa \hspace{0.5} m^{-2} \hspace{0.5} s^{-1}$', 'DVAforcing.png', norm=colors.TwoSlopeNorm(vcenter=0))
+   vatitle = 'QG $\omega$ Diff Vort Adv Forcing %d hPa %s' % (int(MLEV), str(DS.time.values))
+   plotmap(forceVA, MLEV, BNDS, vatitle, '$Pa \hspace{0.5} m^{-2} \hspace{0.5} s^{-1}$', 'DVAforcing.png', norm=colors.TwoSlopeNorm(vcenter=0))
 
    qgforcing = forceTA + forceVA
-   frctitle = 'QG $\omega$ Total Forcing (DVA + TA) %d hPa %s' % (int(ULEV), str(DS.time.values))
-   plotmap(qgforcing, ULEV, BNDS, frctitle, '$Pa \hspace{0.5} m^{-2} \hspace{0.5} s^{-1}$', 'QGforcing.png', norm=colors.TwoSlopeNorm(vcenter=0))
+   frctitle = 'QG $\omega$ Total Forcing (DVA + TA) %d hPa %s' % (int(MLEV), str(DS.time.values))
+   plotmap(qgforcing, MLEV, BNDS, frctitle, '$Pa \hspace{0.5} m^{-2} \hspace{0.5} s^{-1}$', 'QGforcing.png', norm=colors.TwoSlopeNorm(vcenter=0))
 
    l = qgforcing.shape[0] + 1
    m = qgforcing.shape[1] + 1
@@ -100,14 +101,14 @@ def main():
    omegavec = np.reshape(omegavec, (l-1, m-1, n+1), order='C')
 
    qgomega = xr.DataArray(omegavec, coords = qgforcing.coords, dims = qgforcing.dims)
-   omegatitle = 'Colors: $\omega_{QG}$ (forcing by DVA + TA) %d hPa %s\nContours: Reanalysis $\omega \hspace{0.5} [Pa \hspace{0.5} s^{-1}]$' % (int(ULEV), str(DS.time.values))
+   omegatitle = 'Colors: $\omega_{QG}$ (forcing by DVA + TA) %d hPa %s\nContours: Reanalysis $\omega \hspace{0.5} [Pa \hspace{0.5} s^{-1}]$' % (int(MLEV), str(DS.time.values))
    clabelkwargs = {'inline': 1, 'fontsize': 10, 'colors': 'black', 'fmt': '%.1f'}
    contourkwargs = {'colors': 'black', 'transform': ccrs.PlateCarree(), 'levels': np.arange(-5, 5.1, 0.2)}
-   plotmap(qgomega, ULEV, BNDS, omegatitle, '$Pa \hspace{0.5} s^{-1}$', 'QGomega.png', cmap='BrBG_r', norm=colors.TwoSlopeNorm(vcenter=0), contour=True, cntda=DS.OMEGA, clabelkwargs=clabelkwargs, contourkwargs=contourkwargs)
+   plotmap(qgomega, MLEV, BNDS, omegatitle, '$Pa \hspace{0.5} s^{-1}$', 'QGomega.png', cmap='BrBG_r', norm=colors.TwoSlopeNorm(vcenter=0), contour=True, cntda=DS.OMEGA, clabelkwargs=clabelkwargs, contourkwargs=contourkwargs)
 
    qgerror = qgomega - DS.OMEGA
-   errtitle = 'QG Error (QG $\omega$ minus Reanalysis) %d hPa %s' % (int(ULEV), str(DS.time.values))
-   plotmap(qgerror, ULEV, BNDS, errtitle, '$Pa \hspace{0.5} s^{-1}$', 'QGerror.png', cmap='bwr', norm=colors.TwoSlopeNorm(vcenter=0))
+   errtitle = 'QG Error (QG $\omega$ minus Reanalysis) %d hPa %s' % (int(MLEV), str(DS.time.values))
+   plotmap(qgerror, MLEV, BNDS, errtitle, '$Pa \hspace{0.5} s^{-1}$', 'QGerror.png', cmap='bwr', norm=colors.TwoSlopeNorm(vcenter=0))
 
    outds = xr.Dataset(data_vars=dict(OMEGAQG=qgomega, OMEGA=DS.OMEGA, TEMP=DS.T, HGT=DS.Z, FORCING=qgforcing, FORCETA=forceTA, FORCEVA=forceVA))
    outds = outds.fillna(0)
@@ -129,6 +130,18 @@ def main():
    outds = outds.assign(variables=dict(UAG=uag, VAG=vag))
    outds.to_netcdf(path='QGomega.nc') 
 
+   contourkwargs['levels'] = np.arange(4500, 6301, 60)
+   clabelkwargs['fmt'] = '%d'
+   fig, ax = plt.subplots(figsize=(10, 7), subplot_kw=dict(projection=ccrs.PlateCarree()))
+   ax.set_extent(BNDS)
+   ax.coastlines(color='gray')
+   cs1 = ax.contour(DS.lon, DS.lat, DS.Z.sel(level=ULEV).values, **contourkwargs)
+   ax.clabel(cs1, **clabelkwargs)
+   qv = plt.quiver(uag.lon, uag.lat, uag.sel(level=ULEV).values, vag.sel(level=ULEV).values, pivot='mid', scale=1e2, color='black')
+   plt.quiverkey(qv, X=.75, Y=-0.1, U=5, label='5 m s$^{-1}$', labelpos='E')
+   plt.title('%d hPa. Contours: $Z$ [m]; Vectors: $\\vec{v}_{ag}$ (QG approx.)' % ULEV)
+   plt.savefig('hgt_ageo.png', bbox_inches='tight')
+   plt.close()
 
 def plotmap(da, plev, extent, title, cbarlabel, outfile, figsize=(10,7), cmap='BrBG', levels=15, norm=colors.TwoSlopeNorm(vcenter=0), contour=False, cntda=None, clabelkwargs=None, contourkwargs=None):
    fig, ax = plt.subplots(figsize=figsize, subplot_kw=dict(projection=ccrs.PlateCarree()))
@@ -138,7 +151,7 @@ def plotmap(da, plev, extent, title, cbarlabel, outfile, figsize=(10,7), cmap='B
    cbar = fig.colorbar(cs, shrink=0.7, orientation='horizontal')
    cbar.set_label(cbarlabel)
    if contour:
-      cs1 = ax.contour(cntda.lon, cntda.lat, cntda.sel(level=ULEV).values, **contourkwargs)
+      cs1 = ax.contour(cntda.lon, cntda.lat, cntda.sel(level=MLEV).values, **contourkwargs)
       ax.clabel(cs1, **clabelkwargs)
    plt.title(title)
    plt.savefig(outfile, bbox_inches='tight')
@@ -249,6 +262,8 @@ def lapmat(DS, latm=-1):
    slcpmid = slice(1,l)
    slclatmid = slice(1,m)
    sz = (l-1)*(m+latm)*(n+1)
+   rcs = np.arange(sz)
+   iis, js, ks = idx1Dto3D(rcs, l, m, n)
 
    dxvec = DS.dx.values[None,slclatmid,None]
    if latm == 0:
@@ -260,9 +275,9 @@ def lapmat(DS, latm=-1):
 
    L = np.zeros((sz,sz), dtype=np.float64)
    for r in range(sz):
-      ir, jr, kr = idx1Dto3D(r, l, m, n)
+      ir, jr, kr = iis[r], js[r], ks[r]
       for c in range(sz):
-         ic, jc, kc = idx1Dto3D(c, l, m, n)
+         ic, jc, kc = iis[c], js[c], ks[c]
          if ic == ir and kc == kr and abs(jc-jr) == 1:
             L[r,c] = 1/dy**2
          if ir == ic and jr == jc and abs(kc-kr) == 1:
@@ -284,6 +299,8 @@ def matLHS(DS):
    slcpmid = slice(1,l)
    slclatmid = slice(1,m)
    sz = (l-1)*(m-1)*(n+1)
+   rcs = np.arange(sz)
+   iis, js, ks = idx1Dto3D(rcs, l, m, n)
 
    sigmavec = np.reshape(DS.sigma.values[slcpmid,slclatmid,:], sz, order='C')
    op3vec = np.reshape(DS.op3.values[slcpmid,slclatmid,:], sz, order='C')
@@ -294,9 +311,9 @@ def matLHS(DS):
 
    A = lapmat(DS) #np.zeros((sz,sz), dtype=np.float64)
    for r in range(sz):
-      ir, jr, kr = idx1Dto3D(r, l, m, n)
+      ir, jr, kr = iis[r], js[r], ks[r]
       for c in range(sz):
-         ic, jc, kc = idx1Dto3D(c, l, m, n)
+         ic, jc, kc = iis[c], js[c], ks[c]
          if jc == jr and kc == kr and abs(ic-ir) == 1:
             A[r,c] = (f0 / dp)**2 / sigmavec[r]
          if r == c:
