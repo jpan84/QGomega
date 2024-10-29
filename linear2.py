@@ -20,6 +20,8 @@ f0 = 1.031e-4 #s-1
 cp = 1004 #J kg-1 K-1
 OMEGArot = 7.29e-5 #s-1
 
+EPS = np.finfo(float).eps
+
 dp = 7.5e3 #Pa
 dy = a * 2.5*np.pi/180 #m
 dlamb = 2.5*np.pi/180 #rad
@@ -36,10 +38,18 @@ def main():
    OMEGA = xr.open_dataset('%somega.%s.nc' % (DATADIR, YEAR)).omega
    DS = xr.Dataset(data_vars = {'U': U, 'V': V, 'T': T, 'Z': Z, 'OMEGA': OMEGA})
    DS = DS.sel(lat=slice(75., 27.4))
-   DS = DS.reindex(lat = DS.lat.values[::-1]).fillna(0).sel(time = DS.time.values[1328])
+   DS = DS.reindex(lat = DS.lat.values[::-1]).fillna(0).sel(time = DS.time.values[90])
    DS = DS.interp(level=np.arange(1000,99,-dp/100))
    DS = DS.assign(dx=lambda x: a * np.cos(x.lat*np.pi/180) * dlamb)
    DS = DS.assign(sigma=lambda x: sigmastab(x))
+
+   #acct for horiz variations in stability
+   laplogsig = lapl(np.log(np.clip(DS.sigma, a_min=EPS, a_max=None)), DS.dx)
+   laplogsig = np.pad(laplogsig, pad_width=((0, 0), (1, 1), (0, 0)), mode='constant', constant_values=np.nan)
+   laplogsig = xr.DataArray(laplogsig, dims=DS.sigma.dims, coords=DS.sigma.coords)
+   print(laplogsig.shape)
+   print(DS.sigma.shape)
+   DS = DS.assign(op3=laplogsig)
 
    '''
    slc = DS.sigma.sel(lat=47.5, lon=287.5)
@@ -276,6 +286,7 @@ def matLHS(DS):
    sz = (l-1)*(m-1)*(n+1)
 
    sigmavec = np.reshape(DS.sigma.values[slcpmid,slclatmid,:], sz, order='C')
+   op3vec = np.reshape(DS.op3.values[slcpmid,slclatmid,:], sz, order='C')
    dxvec = DS.dx.values[None,slclatmid,None]
    dxvec = np.repeat(dxvec, l-1, axis=0)
    dxvec = np.repeat(dxvec, n+1, axis=2)
@@ -290,7 +301,7 @@ def matLHS(DS):
             A[r,c] = (f0 / dp)**2 / sigmavec[r]
          if r == c:
             #print(f0, sigmavec[r], dp)
-            A[r,c] += -2*(f0 / dp)**2/sigmavec[r]
+            A[r,c] += -2*(f0 / dp)**2/sigmavec[r] + op3vec[r]
 
    return A
 
