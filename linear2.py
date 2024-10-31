@@ -96,7 +96,7 @@ def main():
          forcevec[r] -= DS.OMEGA.values[i, m, k] / dy**2
       if i == 1: #vertical
          forcevec[r] += hdiv[0, j, k] * f0**2 / DS.sigma.values[0, j, k] / dp
-      if i == l-1:
+      if i == l-2:
          forcevec[r] -= hdiv[l, j, k] * f0**2 / DS.sigma.values[l, j, k] / dp
 
    print('Generating A matrix...')
@@ -109,12 +109,16 @@ def main():
    omegavec = np.reshape(omegavec, (l-1, m-1, n+1), order='C')
 
    #compute vertical BC values from Neumann BC solution
-   lbc = omegavec[0,:,:] - hdiv[0,:,:] * dp
-   ubc = omegavec[-1,:,:] + hdiv[-1,:,:] * dp
-   omegavec = np.concatenate((lbc, omegavec, ubc), axis=0)
+   lbc = omegavec[0,:,:] - hdiv[0, 1:-1,:] * dp
+   ubc = omegavec[-1,:,:] + hdiv[-1, 1:-1,:] * dp
+   print(lbc.shape, ubc.shape, omegavec.shape)
+   omegavec = np.concatenate((lbc[None,:,:], omegavec, ubc[None,:,:]), axis=0)
+   print(omegavec.shape)
+   #omegavec[0,:,:] = lbc
+   #omegavec[-1,:,:] = ubc
 
    #qgomega = xr.DataArray(omegavec, coords = qgforcing.coords, dims = qgforcing.dims)
-   qgomega = xr.DataArray(omegavec, coords=DS.coords, dims=DS.dims)
+   qgomega = xr.DataArray(omegavec, coords=[DS.level, DS.lat[1:-1], DS.lon], dims=['level', 'lat', 'lon'])
    omegatitle = 'Colors: $\omega_{QG}$ (forcing by DVA + TA) %d hPa %s\nContours: Reanalysis $\omega \hspace{0.5} [Pa \hspace{0.5} s^{-1}]$' % (int(MLEV), str(DS.time.values))
    clabelkwargs = {'inline': 1, 'fontsize': 10, 'colors': 'black', 'fmt': '%.1f'}
    contourkwargs = {'colors': 'black', 'transform': ccrs.PlateCarree(), 'levels': np.arange(-5, 5.1, 0.2)}
