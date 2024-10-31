@@ -76,20 +76,28 @@ def main():
    frctitle = 'QG $\omega$ Total Forcing (DVA + TA) %d hPa %s' % (int(MLEV), str(DS.time.values))
    plotmap(qgforcing, MLEV, BNDS, frctitle, '$Pa \hspace{0.5} m^{-2} \hspace{0.5} s^{-1}$', 'QGforcing.png', norm=colors.TwoSlopeNorm(vcenter=0))
 
+   udiv, _ = grad(DS.U, DS.dx)
+   _, vdiv = grad(DS.V, DS.dx)
+   hdiv = udiv + vdiv
+
    l = qgforcing.shape[0] + 1
    m = qgforcing.shape[1] + 1
    n = qgforcing.shape[2] - 1
    forcevec = np.reshape(qgforcing.values, (l-1)*(m-1)*(n+1), order='C') #vectorize forcing terms (last axis changing fastest in level,lat,lon)
    print(qgforcing.shape)
-   #handle the north/south boundary conditions
+   #handle the Dirichlet meridional and Neumann vertical boundary conditions
    for r in range(forcevec.shape[0]):
       i = 1 + r // (n+1) // (m-1)
       j = 1 + r // (n+1) % (m-1)
       k = r % (n+1)
-      if j == 1:
+      if j == 1: #meridional
          forcevec[r] -= DS.OMEGA.values[i, 0, k] / dy**2
       if j == m-1:
          forcevec[r] -= DS.OMEGA.values[i, m, k] / dy**2
+      if i == 1: #vertical
+         forcevec[r] += hdiv[0, j, k] * f0**2 / DS.sigma.values[0, j, k] / dp
+      if i == l-1:
+         forcevec[r] -= hdiv[l, j, k] * f0**2 / DS.sigma.values[l, j, k] / dp
 
    print('Generating A matrix...')
    A = matLHS(DS)
@@ -100,7 +108,13 @@ def main():
    omegavec = spsolve(A, forcevec)
    omegavec = np.reshape(omegavec, (l-1, m-1, n+1), order='C')
 
-   qgomega = xr.DataArray(omegavec, coords = qgforcing.coords, dims = qgforcing.dims)
+   #compute vertical BC values from Neumann BC solution
+   lbc = omegavec[0,:,:] - hdiv[0,:,:] * dp
+   ubc = omegavec[-1,:,:] + hdiv[-1,:,:] * dp
+   omegavec = np.concatenate((lbc, omegavec, ubc), axis=0)
+
+   #qgomega = xr.DataArray(omegavec, coords = qgforcing.coords, dims = qgforcing.dims)
+   qgomega = xr.DataArray(omegavec, coords=DS.coords, dims=DS.dims)
    omegatitle = 'Colors: $\omega_{QG}$ (forcing by DVA + TA) %d hPa %s\nContours: Reanalysis $\omega \hspace{0.5} [Pa \hspace{0.5} s^{-1}]$' % (int(MLEV), str(DS.time.values))
    clabelkwargs = {'inline': 1, 'fontsize': 10, 'colors': 'black', 'fmt': '%.1f'}
    contourkwargs = {'colors': 'black', 'transform': ccrs.PlateCarree(), 'levels': np.arange(-5, 5.1, 0.2)}
@@ -112,6 +126,7 @@ def main():
 
    outds = xr.Dataset(data_vars=dict(OMEGAQG=qgomega, OMEGA=DS.OMEGA, TEMP=DS.T, HGT=DS.Z, FORCING=qgforcing, FORCETA=forceTA, FORCEVA=forceVA))
    outds = outds.fillna(0)
+   outds.to_netcdf(path='QGomega.nc')
 
    print('Computing ageo winds...')
    ompad = np.pad(qgomega, ((1, 1), (1, 1), (0, 0)), 'constant', constant_values=0.)
@@ -318,6 +333,8 @@ def matLHS(DS):
             A[r,c] = (f0 / dp)**2 / sigmavec[r]
          if r == c:
             #print(f0, sigmavec[r], dp)
+            if ir == 0 or ir == l-1:
+               A[r,c] += (f0 / dp)**2/sigmavec[r]
             A[r,c] += -2*(f0 / dp)**2/sigmavec[r] + op3vec[r]
 
    return A
