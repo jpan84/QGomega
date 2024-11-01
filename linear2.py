@@ -1,8 +1,9 @@
-#Joshua Pan jp872@cornell.edu 202112
+#Joshua Pan jp872@cornell.edu 202112 updated 202410
 #Turn the QG omega equation (forcing from diff vort adv and temp adv) into a linear system by discretizing derivatives. Interpolate NCEP/NCAR Reanalysis 1 to evenly spaced p levels.
-#Boundary conditions: homogeneous Dirichlet in pressure, periodic in lon, Dirichlet in lat from actual omega
+#Estimate divergent wind using QG continuity equation
+#Boundary conditions: homogeneous at top, Neumann divergence at bottom, periodic in lon, Dirichlet in lat from actual omega
 #For advection terms, assume vg = v.
-#Update: corrected sigma^2 to sigma in denominator of LHS pressure derivative.
+#Account for horizontal variations in static stability.
 
 import xarray as xr
 import numpy as np
@@ -84,9 +85,9 @@ def main():
    m = qgforcing.shape[1] + 1
    n = qgforcing.shape[2] - 1
    forcevec = np.reshape(qgforcing.values, (l-1)*(m-1)*(n+1), order='C') #vectorize forcing terms (last axis changing fastest in level,lat,lon)
-   print(qgforcing.shape)
-   print(hdiv.shape)
-   print(DS.sigma.shape)
+   #print(qgforcing.shape)
+   #print(hdiv.shape)
+   #print(DS.sigma.shape)
    #handle the Dirichlet meridional and Neumann vertical boundary conditions
    for r in range(forcevec.shape[0]):
       i = 1 + r // (n+1) // (m-1)
@@ -98,9 +99,9 @@ def main():
          forcevec[r] -= DS.OMEGA.values[i, m, k] / dy**2
       if i == 0: #vertical
          forcevec[r] += hdiv[0, j+1, k] * f0**2 / DS.sigma.values[1, j+1, k] / dp #sigma is only avail on internal levels
-      if i == l-1:
+      #if i == l-1: !UBC
          #print(DS.sigma.values[l, j, k])
-         forcevec[r] -= hdiv[-1, j+1, k] * f0**2 / DS.sigma.values[l-1, j+1, k] / dp #TODO: make indexing consistent between un/padded fields
+         #forcevec[r] -= hdiv[-1, j+1, k] * f0**2 / DS.sigma.values[l-1, j+1, k] / dp #TODO: make indexing consistent between un/padded fields
 
    print('Generating A matrix...')
    A = matLHS(DS)
@@ -113,10 +114,10 @@ def main():
 
    #compute vertical BC values from Neumann BC solution
    lbc = omegavec[0,:,:] - hdiv[0, 1:-1,:] * dp
-   ubc = omegavec[-1,:,:] + hdiv[-1, 1:-1,:] * dp
-   print(lbc.shape, ubc.shape, omegavec.shape)
+   ubc = np.zeros_like(lbc) #omegavec[-1,:,:] + hdiv[-1, 1:-1,:] * dp !UBC
+   #print(lbc.shape, ubc.shape, omegavec.shape)
    omegavec = np.concatenate((lbc[None,:,:], omegavec, ubc[None,:,:]), axis=0)
-   print(omegavec.shape)
+   #print(omegavec.shape)
    #omegavec[0,:,:] = lbc
    #omegavec[-1,:,:] = ubc
 
@@ -143,7 +144,7 @@ def main():
    divervec = np.reshape(diver, (l-1)*(m+1)*(n+1), order='C') #vectorize divergence (last axis changing fastest in level,lat,lon)
    Lmat = lapmat(DS, latm=0)
    vpot = spsolve(Lmat, divervec)
-   print(l, m, n, vpot.shape)
+   #print(l, m, n, vpot.shape)
    vpot = np.reshape(vpot, (l-1, m+1, n+1), order='C')
    vpot = xr.DataArray(vpot, coords=[DS.level[1:-1], DS.lat, DS.lon], dims=['level', 'lat', 'lon'])
    uag, vag = grad(vpot, DS.dx)
@@ -153,7 +154,7 @@ def main():
    outds = outds.assign(variables=dict(UAG=uag, VAG=vag))
    outds.to_netcdf(path='QGomega.nc') 
 
-   contourkwargs['levels'] = np.arange(4500, 6301, 60)
+   contourkwargs['levels'] = np.arange(-1000, 20001, 100)
    clabelkwargs['fmt'] = '%d'
    fig, ax = plt.subplots(figsize=(10, 7), subplot_kw=dict(projection=ccrs.PlateCarree()))
    ax.set_extent(BNDS)
@@ -324,7 +325,7 @@ def matLHS(DS):
    sz = (l-1)*(m-1)*(n+1)
    rcs = np.arange(sz)
    iis, js, ks = idx1Dto3D(rcs, l, m, n)
-   print(l, m, n)
+   #print(l, m, n)
 
    sigmavec = np.reshape(DS.sigma.values[slcpmid,slclatmid,:], sz, order='C')
    op3vec = np.reshape(DS.op3.values[slcpmid,slclatmid,:], sz, order='C')
@@ -342,7 +343,7 @@ def matLHS(DS):
             A[r,c] = (f0 / dp)**2 / sigmavec[r]
          if r == c:
             #print(f0, sigmavec[r], dp)
-            if ir == 0 or ir == l-1:
+            if ir == 0: #or ir == l-1: !UBC
                A[r,c] += (f0 / dp)**2/sigmavec[r]
             A[r,c] += -2*(f0 / dp)**2/sigmavec[r] + op3vec[r]
 
