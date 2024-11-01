@@ -85,6 +85,8 @@ def main():
    n = qgforcing.shape[2] - 1
    forcevec = np.reshape(qgforcing.values, (l-1)*(m-1)*(n+1), order='C') #vectorize forcing terms (last axis changing fastest in level,lat,lon)
    print(qgforcing.shape)
+   print(hdiv.shape)
+   print(DS.sigma.shape)
    #handle the Dirichlet meridional and Neumann vertical boundary conditions
    for r in range(forcevec.shape[0]):
       i = 1 + r // (n+1) // (m-1)
@@ -95,10 +97,10 @@ def main():
       if j == m-1:
          forcevec[r] -= DS.OMEGA.values[i, m, k] / dy**2
       if i == 0: #vertical
-         forcevec[r] += hdiv[0, j, k] * f0**2 / DS.sigma.values[1, j, k] / dp #sigma is only avail on internal levels
+         forcevec[r] += hdiv[0, j+1, k] * f0**2 / DS.sigma.values[1, j+1, k] / dp #sigma is only avail on internal levels
       if i == l-1:
          #print(DS.sigma.values[l, j, k])
-         forcevec[r] -= hdiv[l, j, k] * f0**2 / DS.sigma.values[l-1, j, k] / dp
+         forcevec[r] -= hdiv[-1, j+1, k] * f0**2 / DS.sigma.values[l-1, j+1, k] / dp #TODO: make indexing consistent between un/padded fields
 
    print('Generating A matrix...')
    A = matLHS(DS)
@@ -135,7 +137,8 @@ def main():
 
    print('Computing ageo winds...')
    #ompad = np.pad(qgomega, ((1, 1), (1, 1), (0, 0)), 'constant', constant_values=0.)
-   ompad = xr.DataArray(qgomega, coords=[DS.level, DS.lat, DS.lon], dims=['level', 'lat', 'lon'])
+   ompad = np.pad(qgomega, ((0, 0), (1, 1), (0, 0)), 'constant', constant_values=0.)
+   ompad = xr.DataArray(ompad, coords=[DS.level, DS.lat, DS.lon], dims=['level', 'lat', 'lon'])
    diver = -d_dp(ompad, dp)
    divervec = np.reshape(diver, (l-1)*(m+1)*(n+1), order='C') #vectorize divergence (last axis changing fastest in level,lat,lon)
    Lmat = lapmat(DS, latm=0)
