@@ -48,8 +48,8 @@ def main():
    laplogsig = lapl(np.log(np.clip(DS.sigma, a_min=EPS, a_max=None)), DS.dx)
    laplogsig = np.pad(laplogsig, pad_width=((0, 0), (1, 1), (0, 0)), mode='constant', constant_values=np.nan)
    laplogsig = xr.DataArray(laplogsig, dims=DS.sigma.dims, coords=DS.sigma.coords)
-   print(laplogsig.shape)
-   print(DS.sigma.shape)
+   #print(laplogsig.shape)
+   #print(DS.sigma.shape)
    DS = DS.assign(op3=laplogsig)
 
    '''
@@ -94,10 +94,11 @@ def main():
          forcevec[r] -= DS.OMEGA.values[i, 0, k] / dy**2
       if j == m-1:
          forcevec[r] -= DS.OMEGA.values[i, m, k] / dy**2
-      if i == 1: #vertical
-         forcevec[r] += hdiv[0, j, k] * f0**2 / DS.sigma.values[0, j, k] / dp
-      if i == l-2:
-         forcevec[r] -= hdiv[l, j, k] * f0**2 / DS.sigma.values[l, j, k] / dp
+      if i == 0: #vertical
+         forcevec[r] += hdiv[0, j, k] * f0**2 / DS.sigma.values[1, j, k] / dp #sigma is only avail on internal levels
+      if i == l-1:
+         #print(DS.sigma.values[l, j, k])
+         forcevec[r] -= hdiv[l, j, k] * f0**2 / DS.sigma.values[l-1, j, k] / dp
 
    print('Generating A matrix...')
    A = matLHS(DS)
@@ -133,8 +134,8 @@ def main():
    outds.to_netcdf(path='QGomega.nc')
 
    print('Computing ageo winds...')
-   ompad = np.pad(qgomega, ((1, 1), (1, 1), (0, 0)), 'constant', constant_values=0.)
-   ompad = xr.DataArray(ompad, coords=[DS.level, DS.lat, DS.lon], dims=['level', 'lat', 'lon'])
+   #ompad = np.pad(qgomega, ((1, 1), (1, 1), (0, 0)), 'constant', constant_values=0.)
+   ompad = xr.DataArray(qgomega, coords=[DS.level, DS.lat, DS.lon], dims=['level', 'lat', 'lon'])
    diver = -d_dp(ompad, dp)
    divervec = np.reshape(diver, (l-1)*(m+1)*(n+1), order='C') #vectorize divergence (last axis changing fastest in level,lat,lon)
    Lmat = lapmat(DS, latm=0)
@@ -289,7 +290,7 @@ def lapmat(DS, latm=-1):
       dxvec = DS.dx.values[None,:,None]
    dxvec = np.repeat(dxvec, l-1, axis=0)
    dxvec = np.repeat(dxvec, n+1, axis=2)
-   print(l, m, n, dxvec.shape)
+   #print(l, m, n, dxvec.shape)
    dxvec = np.reshape(dxvec, sz, order='C')
 
    L = np.zeros((sz,sz), dtype=np.float64)
@@ -320,13 +321,14 @@ def matLHS(DS):
    sz = (l-1)*(m-1)*(n+1)
    rcs = np.arange(sz)
    iis, js, ks = idx1Dto3D(rcs, l, m, n)
+   print(l, m, n)
 
    sigmavec = np.reshape(DS.sigma.values[slcpmid,slclatmid,:], sz, order='C')
    op3vec = np.reshape(DS.op3.values[slcpmid,slclatmid,:], sz, order='C')
-   dxvec = DS.dx.values[None,slclatmid,None]
-   dxvec = np.repeat(dxvec, l-1, axis=0)
-   dxvec = np.repeat(dxvec, n+1, axis=2)
-   dxvec = np.reshape(dxvec, sz, order='C')
+   #dxvec = DS.dx.values[None,slclatmid,None]
+   #dxvec = np.repeat(dxvec, l-1, axis=0)
+   #dxvec = np.repeat(dxvec, n+1, axis=2)
+   #dxvec = np.reshape(dxvec, sz, order='C')
 
    A = lapmat(DS) #np.zeros((sz,sz), dtype=np.float64)
    for r in range(sz):
