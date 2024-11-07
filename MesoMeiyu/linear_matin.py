@@ -13,9 +13,9 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 import cartopy.crs as ccrs
 
-DATADIR = './'
-YEAR = '9999'
-tstr = '28 Jun–12 Jul'
+DATADIR = './Reanalysis/'
+YEAR = '2001'
+#tstr = '28 Jun–12 Jul'
 Afile = 'QGomegaLHS_mat.%s.npy' % YEAR
 
 Rd = 287.06 #J kg-1 K-1
@@ -43,91 +43,56 @@ def main():
    OMEGA = xr.open_dataset('%somega.%s.nc' % (DATADIR, YEAR)).omega
    DS = xr.Dataset(data_vars = {'U': U, 'V': V, 'T': T, 'Z': Z, 'OMEGA': OMEGA})
    DS = DS.sel(lat=slice(75., 27.4))
-   DS = DS.reindex(lat = DS.lat.values[::-1]).fillna(0)#.sel(time = DS.time.values[115])
+   DS = DS.reindex(lat = DS.lat.values[::-1]).fillna(0).sel(time=DS.time.dt.month.isin([6, 7]) &
+                       ((DS.time.dt.month == 6) & (DS.time.dt.day >= 28) | 
+                        (DS.time.dt.month == 7) & (DS.time.dt.day <= 12)))
    DS = DS.interp(level=np.arange(1000,99,-dp/100))
-   DS = DS.assign(dx=lambda x: a * np.cos(x.lat*np.pi/180) * dlamb)
-   DS = DS.assign(sigma=lambda x: sigmastab(x))
+   DS = DS.assign(dx=lambda x: a * np.cos(x.lat*np.pi/180) * dlamb) 
+   print(DS)
+   Amat = np.load(Afile)
 
-   #acct for horiz variations in stability
-   laplogsig = lapl(np.log(np.clip(DS.sigma, a_min=EPS, a_max=None)), DS.dx)
-   laplogsig = np.pad(laplogsig, pad_width=((0, 0), (1, 1), (0, 0)), mode='constant', constant_values=np.nan)
-   laplogsig = xr.DataArray(laplogsig, dims=DS.sigma.dims, coords=DS.sigma.coords)
-   #print(laplogsig.shape)
-   #print(DS.sigma.shape)
-   DS = DS.assign(op3=laplogsig)
+   for tt in DS.time:
+      DStt = DS.sel(time=tt).assign(sigma=lambda x: sigmastab(x))
+      forceTA = qgTA(DStt)
+      forceVA = qgVA(DStt)
+      qgforcing = forceTA + forceVA
+      udiv, _ = grad(DStt.U, DS.dx)
+      _, vdiv = grad(DStt.V, DS.dx)
+      hdiv = udiv + vdiv
 
-   '''
-   slc = DS.sigma.sel(lat=47.5, lon=287.5)
-   plt.plot(slc.values, slc.level)
-   plt.xlabel('$\sigma \hspace{0.5} (J \hspace{0.5} kg^{-1} \hspace{0.5} Pa^{-2})$')
-   plt.ylabel('p (hPa)')
-   plt.yscale('log')
-   plt.gca().invert_yaxis()
-   plt.title('%.2f°N, %.2f°E' % (slc.lat.values, slc.lon.values))
-   plt.savefig('sigmavsz.png')
-   plt.close()
-   '''
+      l = qgforcing.shape[0] + 1
+      m = qgforcing.shape[1] + 1
+      n = qgforcing.shape[2] - 1
+      forcevec = np.reshape(qgforcing.values, (l-1)*(m-1)*(n+1), order='C') #vectorize forcing terms (last axis changing fastest in level,lat,lon)
+      #print(qgforcing.shape)
+      #print(hdiv.shape)
+      #print(DS.sigma.shape)
+      #handle the Dirichlet meridional and Neumann vertical boundary conditions
+      for r in range(forcevec.shape[0]):
+         i = 1 + r // (n+1) // (m-1)
+         j = 1 + r // (n+1) % (m-1)
+         k = r % (n+1)
+         if j == 1: #meridional
+            forcevec[r] -= DStt.OMEGA.values[i, 0, k] / dy**2
+         if j == m-1:
+            forcevec[r] -= DStt.OMEGA.values[i, m, k] / dy**2
+         #if i == 0: #vertical
+         #   forcevec[r] += hdiv[0, j+1, k] * f0**2 / DS.sigma.values[1, j+1, k] / dp #sigma is only avail on internal levels
+         #if i == l-1: !UBC
+            #print(DS.sigma.values[l, j, k])
+            #forcevec[r] -= hdiv[-1, j+1, k] * f0**2 / DS.sigma.values[l-1, j+1, k] / dp #TODO: make indexing consistent between un/padded fields
+   
+      print('Solving BVP...')
+      omegavec = spsolve(A, forcevec)
+      omegavec = np.reshape(omegavec, (l-1, m-1, n+1), order='C')
 
-   forceTA = qgTA(DS)
-   tatitle = 'QG $\omega$ Temp Adv Forcing %d hPa %s' % (int(LLEV), tstr)
-   plotmap(forceTA, LLEV, BNDS, tatitle, '$Pa \hspace{0.5} m^{-2} \hspace{0.5} s^{-1}$', 'TAforcing.png')
+      #compute vertical BC values from Neumann BC solution
+      lbc = omegavec[0,:,:] - hdiv[0, 1:-1,:] * dp * 0
+      ubc = np.zeros_like(lbc) #omegavec[-1,:,:] + hdiv[-1, 1:-1,:] * dp !UBC
+      #print(lbc.shape, ubc.shape, omegavec.shape)
+      omegavec = np.concatenate((lbc[None,:,:], omegavec, ubc[None,:,:]), axis=0)
 
-   forceVA = qgVA(DS)
-   vatitle = 'QG $\omega$ Diff Vort Adv Forcing %d hPa %s' % (int(MLEV), tstr)
-   plotmap(forceVA, MLEV, BNDS, vatitle, '$Pa \hspace{0.5} m^{-2} \hspace{0.5} s^{-1}$', 'DVAforcing.png', norm=colors.TwoSlopeNorm(vcenter=0))
-
-   qgforcing = forceTA + forceVA
-   frctitle = 'QG $\omega$ Total Forcing (DVA + TA) %d hPa %s' % (int(MLEV), tstr)
-   plotmap(qgforcing, MLEV, BNDS, frctitle, '$Pa \hspace{0.5} m^{-2} \hspace{0.5} s^{-1}$', 'QGforcing.png', norm=colors.TwoSlopeNorm(vcenter=0))
-
-   udiv, _ = grad(DS.U, DS.dx)
-   _, vdiv = grad(DS.V, DS.dx)
-   hdiv = udiv + vdiv
-
-   l = qgforcing.shape[0] + 1
-   m = qgforcing.shape[1] + 1
-   n = qgforcing.shape[2] - 1
-   forcevec = np.reshape(qgforcing.values, (l-1)*(m-1)*(n+1), order='C') #vectorize forcing terms (last axis changing fastest in level,lat,lon)
-   #print(qgforcing.shape)
-   #print(hdiv.shape)
-   #print(DS.sigma.shape)
-   #handle the Dirichlet meridional and Neumann vertical boundary conditions
-   for r in range(forcevec.shape[0]):
-      i = 1 + r // (n+1) // (m-1)
-      j = 1 + r // (n+1) % (m-1)
-      k = r % (n+1)
-      if j == 1: #meridional
-         forcevec[r] -= DS.OMEGA.values[i, 0, k] / dy**2
-      if j == m-1:
-         forcevec[r] -= DS.OMEGA.values[i, m, k] / dy**2
-      #if i == 0: #vertical
-      #   forcevec[r] += hdiv[0, j+1, k] * f0**2 / DS.sigma.values[1, j+1, k] / dp #sigma is only avail on internal levels
-      #if i == l-1: !UBC
-         #print(DS.sigma.values[l, j, k])
-         #forcevec[r] -= hdiv[-1, j+1, k] * f0**2 / DS.sigma.values[l-1, j+1, k] / dp #TODO: make indexing consistent between un/padded fields
-
-   print('Reading A matrix...')
-   A = np.load(Afile)
-   print('Solving BVP...')
-   omegavec = spsolve(A, forcevec)
-   omegavec = np.reshape(omegavec, (l-1, m-1, n+1), order='C')
-
-   #compute vertical BC values from Neumann BC solution
-   lbc = omegavec[0,:,:] - hdiv[0, 1:-1,:] * dp * 0
-   ubc = np.zeros_like(lbc) #omegavec[-1,:,:] + hdiv[-1, 1:-1,:] * dp !UBC
-   #print(lbc.shape, ubc.shape, omegavec.shape)
-   omegavec = np.concatenate((lbc[None,:,:], omegavec, ubc[None,:,:]), axis=0)
-
-   #qgomega = xr.DataArray(omegavec, coords = qgforcing.coords, dims = qgforcing.dims)
-   qgomega = xr.DataArray(omegavec, coords=[DS.level, DS.lat[1:-1], DS.lon], dims=['level', 'lat', 'lon'])
-   omegatitle = 'Colors: $\omega_{QG}$ (forcing by DVA + TA) %d hPa %s\nContours: Reanalysis $\omega \hspace{0.5} [Pa \hspace{0.5} s^{-1}]$' % (int(MLEV), tstr)
-   clabelkwargs = {'inline': 1, 'fontsize': 10, 'colors': 'black', 'fmt': '%.2f'}
-   contourkwargs = {'colors': 'black', 'transform': ccrs.PlateCarree(), 'levels': np.arange(-5, 5.1, 0.02)}
-   plotmap(qgomega, MLEV, BNDS, omegatitle, '$Pa \hspace{0.5} s^{-1}$', 'QGomega.png', cmap='BrBG_r', norm=colors.TwoSlopeNorm(vcenter=0), contour=True, cntda=DS.OMEGA, clabelkwargs=clabelkwargs, contourkwargs=contourkwargs)
-
-   qgerror = qgomega - DS.OMEGA
-   errtitle = 'QG Error (QG $\omega$ minus Reanalysis) %d hPa %s' % (int(MLEV), tstr)
-   plotmap(qgerror, MLEV, BNDS, errtitle, '$Pa \hspace{0.5} s^{-1}$', 'QGerror.png', cmap='bwr', norm=colors.TwoSlopeNorm(vcenter=0))
+      exit()
 
    outds = xr.Dataset(data_vars=dict(OMEGAQG=qgomega, OMEGA=DS.OMEGA, TEMP=DS.T, HGT=DS.Z, FORCING=qgforcing, FORCETA=forceTA, FORCEVA=forceVA))
    outds = outds.fillna(0)
