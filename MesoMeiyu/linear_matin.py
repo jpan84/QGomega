@@ -1,7 +1,8 @@
-#Joshua Pan jp872@cornell.edu 202112 updated 202410
+#Joshua Pan jp872@cornell.edu 202112 updated 202411
+#_matin reads in a time-mean LHS matrix rather than generating it.
 #Turn the QG omega equation (forcing from diff vort adv and temp adv) into a linear system by discretizing derivatives. Interpolate NCEP/NCAR Reanalysis 1 to evenly spaced p levels.
 #Estimate divergent wind using QG continuity equation
-#Boundary conditions: homogeneous at top, Neumann divergence at bottom, periodic in lon, Dirichlet in lat from actual omega
+#Boundary conditions: homogeneous at top and bottom, periodic in lon, Dirichlet in lat from actual omega
 #For advection terms, assume vg = v.
 #Account for horizontal variations in static stability.
 
@@ -13,8 +14,9 @@ import matplotlib.colors as colors
 import cartopy.crs as ccrs
 
 DATADIR = './'
-YEAR = '9998'
+YEAR = '9999'
 tstr = '28 Jun–12 Jul'
+Afile = 'QGomegaLHS_mat.%s.npy' % YEAR
 
 Rd = 287.06 #J kg-1 K-1
 a = 6.371e6 #m
@@ -98,34 +100,28 @@ def main():
          forcevec[r] -= DS.OMEGA.values[i, 0, k] / dy**2
       if j == m-1:
          forcevec[r] -= DS.OMEGA.values[i, m, k] / dy**2
-      if i == 0: #vertical
-         forcevec[r] += hdiv[0, j+1, k] * f0**2 / DS.sigma.values[1, j+1, k] / dp #sigma is only avail on internal levels
+      #if i == 0: #vertical
+      #   forcevec[r] += hdiv[0, j+1, k] * f0**2 / DS.sigma.values[1, j+1, k] / dp #sigma is only avail on internal levels
       #if i == l-1: !UBC
          #print(DS.sigma.values[l, j, k])
          #forcevec[r] -= hdiv[-1, j+1, k] * f0**2 / DS.sigma.values[l-1, j+1, k] / dp #TODO: make indexing consistent between un/padded fields
 
-   print('Generating A matrix...')
-   A = matLHS(DS)
-   plt.spy(A[:3000,:3000])
-   plt.savefig('matrix.png')
-   plt.close()
+   print('Reading A matrix...')
+   A = np.load(Afile)
    print('Solving BVP...')
    omegavec = spsolve(A, forcevec)
    omegavec = np.reshape(omegavec, (l-1, m-1, n+1), order='C')
 
    #compute vertical BC values from Neumann BC solution
-   lbc = omegavec[0,:,:] - hdiv[0, 1:-1,:] * dp
+   lbc = omegavec[0,:,:] - hdiv[0, 1:-1,:] * dp * 0
    ubc = np.zeros_like(lbc) #omegavec[-1,:,:] + hdiv[-1, 1:-1,:] * dp !UBC
    #print(lbc.shape, ubc.shape, omegavec.shape)
    omegavec = np.concatenate((lbc[None,:,:], omegavec, ubc[None,:,:]), axis=0)
-   #print(omegavec.shape)
-   #omegavec[0,:,:] = lbc
-   #omegavec[-1,:,:] = ubc
 
    #qgomega = xr.DataArray(omegavec, coords = qgforcing.coords, dims = qgforcing.dims)
    qgomega = xr.DataArray(omegavec, coords=[DS.level, DS.lat[1:-1], DS.lon], dims=['level', 'lat', 'lon'])
    omegatitle = 'Colors: $\omega_{QG}$ (forcing by DVA + TA) %d hPa %s\nContours: Reanalysis $\omega \hspace{0.5} [Pa \hspace{0.5} s^{-1}]$' % (int(MLEV), tstr)
-   clabelkwargs = {'inline': 1, 'fontsize': 10, 'colors': 'black', 'fmt': '%.1f'}
+   clabelkwargs = {'inline': 1, 'fontsize': 10, 'colors': 'black', 'fmt': '%.2f'}
    contourkwargs = {'colors': 'black', 'transform': ccrs.PlateCarree(), 'levels': np.arange(-5, 5.1, 0.02)}
    plotmap(qgomega, MLEV, BNDS, omegatitle, '$Pa \hspace{0.5} s^{-1}$', 'QGomega.png', cmap='BrBG_r', norm=colors.TwoSlopeNorm(vcenter=0), contour=True, cntda=DS.OMEGA, clabelkwargs=clabelkwargs, contourkwargs=contourkwargs)
 
@@ -315,40 +311,6 @@ def lapmat(DS, latm=-1):
             L[r,c] = 1/dxvec[r]**2
 
    return L
-
-def matLHS(DS):
-   #construct a matrix representation of the differential operators on the left-hand side of the QG omega equation
-   l = DS.level.shape[0] - 1
-   m = DS.lat.shape[0] - 1
-   n = DS.lon.shape[0] - 1
-   slcpmid = slice(1,l)
-   slclatmid = slice(1,m)
-   sz = (l-1)*(m-1)*(n+1)
-   rcs = np.arange(sz)
-   iis, js, ks = idx1Dto3D(rcs, l, m, n)
-   #print(l, m, n)
-
-   sigmavec = np.reshape(DS.sigma.values[slcpmid,slclatmid,:], sz, order='C')
-   op3vec = np.reshape(DS.op3.values[slcpmid,slclatmid,:], sz, order='C')
-   #dxvec = DS.dx.values[None,slclatmid,None]
-   #dxvec = np.repeat(dxvec, l-1, axis=0)
-   #dxvec = np.repeat(dxvec, n+1, axis=2)
-   #dxvec = np.reshape(dxvec, sz, order='C')
-
-   A = lapmat(DS) #np.zeros((sz,sz), dtype=np.float64)
-   for r in range(sz):
-      ir, jr, kr = iis[r], js[r], ks[r]
-      for c in range(sz):
-         ic, jc, kc = iis[c], js[c], ks[c]
-         if jc == jr and kc == kr and abs(ic-ir) == 1:
-            A[r,c] = (f0 / dp)**2 / sigmavec[r]
-         if r == c:
-            #print(f0, sigmavec[r], dp)
-            if ir == 0: #or ir == l-1: !UBC
-               A[r,c] += (f0 / dp)**2/sigmavec[r]
-            A[r,c] += -2*(f0 / dp)**2/sigmavec[r] + op3vec[r]
-
-   return A
 
 def idx1Dto3D(rc, l, m, n):
    k = rc % (n+1)

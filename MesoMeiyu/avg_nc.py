@@ -5,7 +5,7 @@ import numpy as np
 import xarray as xr
 import os
 
-DATADIR = './Reanalysis/'
+DATADIR = './Reanalysis.9998/'
 start_date = '06-28'
 end_date = '07-12'
 RAvars = ['uwnd', 'vwnd', 'air', 'hgt', 'omega']#, 'shum']
@@ -22,7 +22,7 @@ def main():
    tsel.append(thta(tsel[RAvars.index('air')]))
 
    tmean = [da.mean(dim='time') for da in tsel]
-   [da.to_netcdf(path='%s.9999.nc' % da.name) for da in tmean]
+   [da.to_netcdf(path='%s.9998.nc' % da.name) for da in tmean]
 
 def thta(da_T, pname='level'):
    #potential temp given T[K] and p[hPa]

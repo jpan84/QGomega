@@ -37,7 +37,7 @@ plt.close()
 figsize = (6, 4)
 clabelkwargs = {'inline': 1, 'fontsize': 10, 'colors': 'black', 'fmt': '%.2f'}
 contourkwargs = {'colors': clabelkwargs['colors'], 'levels': np.arange(-5, 5.1, 0.02)}
-slc = ds.OMEGAQG.sel(lat=slice(30, 55), lon = slice(115, 130))#slice(117, 124))
+slc = ds.OMEGAQG.sel(lat=slice(30, 55), lon = slice(117, 124))
 slc2 = ds.OMEGA.sel(lat=slc.lat.values, lon=slc.lon.values)
 slc3 = ds.VAG.sel(lat=slc.lat.values, lon=slc.lon.values)
 slc, slc2, slc3 = slc.mean(dim='lon'), slc2.mean(dim='lon'), slc3.mean(dim='lon')
