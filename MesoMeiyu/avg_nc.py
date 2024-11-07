@@ -1,6 +1,7 @@
 #Joshua Pan 202411
 #Average NCEP Reanalysis for METEO 529 Project
 
+import numpy as np
 import xarray as xr
 import os
 
@@ -25,7 +26,7 @@ def main():
 
 def thta(da_T, pname='level'):
    #potential temp given T[K] and p[hPa]
-   thta_da = np.multiply(da_T, (1000/da_T[pname][:,None,None])**(Rd/cp))
+   thta_da = np.multiply(da_T, (1000/da_T[pname])**(Rd/cp))
    thta_da.attrs['name'] = 'thta'
    return thta_da
 
