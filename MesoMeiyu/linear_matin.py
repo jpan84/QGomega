@@ -50,8 +50,8 @@ def main():
    DS = DS.interp(level=np.arange(1000,99,-dp/100))
    DS = DS.assign(dx=lambda x: a * np.cos(x.lat*np.pi/180) * dlamb) 
    print(DS)
-   Amat = np.load(Afile)
-   Lmat = np.load(Lfile)
+   Amat = np.load(Afile, mmap_mode='r')
+   Lmat = np.load(Lfile, mmap_mode='r')
 
    outds = None
    for tt in DS.time:
@@ -68,8 +68,8 @@ def main():
       m = qgforcing.shape[1] + 1
       n = qgforcing.shape[2] - 1
       forcevec = np.reshape(qgforcing.values, (l-1)*(m-1)*(n+1), order='C') #vectorize forcing terms (last axis changing fastest in level,lat,lon)
-      #print(qgforcing.shape)
-      #print(hdiv.shape)
+      print(qgforcing.shape)
+      print(Amat.shape)
       #print(DS.sigma.shape)
       #handle the Dirichlet meridional and Neumann vertical boundary conditions
       for r in range(forcevec.shape[0]):
