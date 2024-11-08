@@ -16,7 +16,8 @@ import cartopy.crs as ccrs
 DATADIR = './Reanalysis/'
 YEAR = '2001'
 #tstr = '28 Jun–12 Jul'
-Afile = 'QGomegaLHS_mat.%s.npy' % YEAR
+Afile = 'QGomegaLHS_mat.9999.npy'
+Lfile = 'Lapmat_ag.9999.npy'
 
 Rd = 287.06 #J kg-1 K-1
 a = 6.371e6 #m
@@ -42,7 +43,7 @@ def main():
    Z = xr.open_dataset('%shgt.%s.nc' % (DATADIR, YEAR)).hgt
    OMEGA = xr.open_dataset('%somega.%s.nc' % (DATADIR, YEAR)).omega
    DS = xr.Dataset(data_vars = {'U': U, 'V': V, 'T': T, 'Z': Z, 'OMEGA': OMEGA})
-   DS = DS.sel(lat=slice(75., 27.4))
+   DS = DS.sel(lat=slice(70., 25))
    DS = DS.reindex(lat = DS.lat.values[::-1]).fillna(0).sel(time=DS.time.dt.month.isin([6, 7]) &
                        ((DS.time.dt.month == 6) & (DS.time.dt.day >= 28) | 
                         (DS.time.dt.month == 7) & (DS.time.dt.day <= 12)))
@@ -50,8 +51,11 @@ def main():
    DS = DS.assign(dx=lambda x: a * np.cos(x.lat*np.pi/180) * dlamb) 
    print(DS)
    Amat = np.load(Afile)
+   Lmat = np.load(Lfile)
 
+   outds = None
    for tt in DS.time:
+      print(tt)
       DStt = DS.sel(time=tt).assign(sigma=lambda x: sigmastab(x))
       forceTA = qgTA(DStt)
       forceVA = qgVA(DStt)
@@ -83,51 +87,39 @@ def main():
             #forcevec[r] -= hdiv[-1, j+1, k] * f0**2 / DS.sigma.values[l-1, j+1, k] / dp #TODO: make indexing consistent between un/padded fields
    
       print('Solving BVP...')
-      omegavec = spsolve(A, forcevec)
+      omegavec = spsolve(Amat, forcevec)
       omegavec = np.reshape(omegavec, (l-1, m-1, n+1), order='C')
 
       #compute vertical BC values from Neumann BC solution
-      lbc = omegavec[0,:,:] - hdiv[0, 1:-1,:] * dp * 0
+      lbc = (omegavec[0,:,:] - hdiv[0, 1:-1,:] * dp) * 0
       ubc = np.zeros_like(lbc) #omegavec[-1,:,:] + hdiv[-1, 1:-1,:] * dp !UBC
       #print(lbc.shape, ubc.shape, omegavec.shape)
       omegavec = np.concatenate((lbc[None,:,:], omegavec, ubc[None,:,:]), axis=0)
 
-      exit()
+      outtt = xr.Dataset(data_vars=dict(OMEGAQG=qgomega, OMEGA=DStt.OMEGA, TEMP=DStt.T, HGT=DStt.Z, UWND=DStt.U, VWND=DStt.V, FORCING=qgforcing, FORCETA=forceTA, FORCEVA=forceVA))
+   
+      print('Computing ageo winds...')
+      ompad = np.pad(qgomega, ((0, 0), (1, 1), (0, 0)), 'constant', constant_values=0.)
+      ompad = xr.DataArray(ompad, coords=[DS.level, DS.lat, DS.lon], dims=['level', 'lat', 'lon'])
+      diver = -d_dp(ompad, dp)
+      divervec = np.reshape(diver, (l-1)*(m+1)*(n+1), order='C') #vectorize divergence (last axis changing fastest in level,lat,lon)
+      vpot = spsolve(Lmat, divervec)
+      #print(l, m, n, vpot.shape)
+      vpot = np.reshape(vpot, (l-1, m+1, n+1), order='C')
+      vpot = xr.DataArray(vpot, coords=[DS.level[1:-1], DS.lat, DS.lon], dims=['level', 'lat', 'lon'])
+      uag, vag = grad(vpot, DS.dx)
+      uag = xr.DataArray(uag, coords=vpot.coords, dims=vpot.dims)
+      vag = xr.DataArray(vag, coords=vpot.coords, dims=vpot.dims)
+   
+      outtt = outtt.assign(variables=dict(UAG=uag, VAG=vag))
+      if outds is None:
+         outds = outtt
+      else:
+         outds = xr.concat([outds, outt], dim='time')
 
-   outds = xr.Dataset(data_vars=dict(OMEGAQG=qgomega, OMEGA=DS.OMEGA, TEMP=DS.T, HGT=DS.Z, FORCING=qgforcing, FORCETA=forceTA, FORCEVA=forceVA))
-   outds = outds.fillna(0)
-   outds.to_netcdf(path='QGomega.nc')
-
-   print('Computing ageo winds...')
-   #ompad = np.pad(qgomega, ((1, 1), (1, 1), (0, 0)), 'constant', constant_values=0.)
-   ompad = np.pad(qgomega, ((0, 0), (1, 1), (0, 0)), 'constant', constant_values=0.)
-   ompad = xr.DataArray(ompad, coords=[DS.level, DS.lat, DS.lon], dims=['level', 'lat', 'lon'])
-   diver = -d_dp(ompad, dp)
-   divervec = np.reshape(diver, (l-1)*(m+1)*(n+1), order='C') #vectorize divergence (last axis changing fastest in level,lat,lon)
-   Lmat = lapmat(DS, latm=0)
-   vpot = spsolve(Lmat, divervec)
-   #print(l, m, n, vpot.shape)
-   vpot = np.reshape(vpot, (l-1, m+1, n+1), order='C')
-   vpot = xr.DataArray(vpot, coords=[DS.level[1:-1], DS.lat, DS.lon], dims=['level', 'lat', 'lon'])
-   uag, vag = grad(vpot, DS.dx)
-   uag = xr.DataArray(uag, coords=vpot.coords, dims=vpot.dims)
-   vag = xr.DataArray(vag, coords=vpot.coords, dims=vpot.dims)
-
-   outds = outds.assign(variables=dict(UAG=uag, VAG=vag))
-   outds.to_netcdf(path='QGomega.nc') 
-
-   contourkwargs['levels'] = np.arange(-1000, 20001, 100)
-   clabelkwargs['fmt'] = '%d'
-   fig, ax = plt.subplots(figsize=(10, 7), subplot_kw=dict(projection=ccrs.PlateCarree()))
-   ax.set_extent(BNDS)
-   ax.coastlines(color='gray')
-   cs1 = ax.contour(DS.lon, DS.lat, DS.Z.sel(level=ULEV).values, **contourkwargs)
-   ax.clabel(cs1, **clabelkwargs)
-   qv = plt.quiver(uag.lon, uag.lat, uag.sel(level=ULEV).values, vag.sel(level=ULEV).values, pivot='mid', scale=1e1, color='black')
-   plt.quiverkey(qv, X=.75, Y=-0.1, U=1, label='1 m s$^{-1}$', labelpos='E')
-   plt.title('%d hPa. Contours: $Z$ [m]; Vectors: $\\vec{v}_{ag}$ (QG approx.)' % ULEV)
-   plt.savefig('hgt_ageo.png', bbox_inches='tight')
-   plt.close()
+      outds = outds.fillna(0)
+      outds.to_netcdf(path='QGomega.nc') 
+   
 
 def plotmap(da, plev, extent, title, cbarlabel, outfile, figsize=(10,7), cmap='BrBG', levels=15, norm=colors.TwoSlopeNorm(vcenter=0), contour=False, cntda=None, clabelkwargs=None, contourkwargs=None):
    fig, ax = plt.subplots(figsize=figsize, subplot_kw=dict(projection=ccrs.PlateCarree()))

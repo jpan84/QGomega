@@ -13,7 +13,7 @@ import matplotlib.colors as colors
 import cartopy.crs as ccrs
 
 DATADIR = './'
-YEAR = '9998'
+YEAR = '9999'
 tstr = '28 Jun–12 Jul'
 
 Rd = 287.06 #J kg-1 K-1
@@ -40,7 +40,7 @@ def main():
    Z = xr.open_dataset('%shgt.%s.nc' % (DATADIR, YEAR)).hgt
    OMEGA = xr.open_dataset('%somega.%s.nc' % (DATADIR, YEAR)).omega
    DS = xr.Dataset(data_vars = {'U': U, 'V': V, 'T': T, 'Z': Z, 'OMEGA': OMEGA})
-   DS = DS.sel(lat=slice(75., 27.4))
+   DS = DS.sel(lat=slice(70., 25))
    DS = DS.reindex(lat = DS.lat.values[::-1]).fillna(0)#.sel(time = DS.time.values[115])
    DS = DS.interp(level=np.arange(1000,99,-dp/100))
    DS = DS.assign(dx=lambda x: a * np.cos(x.lat*np.pi/180) * dlamb)
@@ -98,8 +98,8 @@ def main():
          forcevec[r] -= DS.OMEGA.values[i, 0, k] / dy**2
       if j == m-1:
          forcevec[r] -= DS.OMEGA.values[i, m, k] / dy**2
-      if i == 0: #vertical
-         forcevec[r] += hdiv[0, j+1, k] * f0**2 / DS.sigma.values[1, j+1, k] / dp #sigma is only avail on internal levels
+      #if i == 0: #vertical
+      #   forcevec[r] += hdiv[0, j+1, k] * f0**2 / DS.sigma.values[1, j+1, k] / dp #sigma is only avail on internal levels
       #if i == l-1: !UBC
          #print(DS.sigma.values[l, j, k])
          #forcevec[r] -= hdiv[-1, j+1, k] * f0**2 / DS.sigma.values[l-1, j+1, k] / dp #TODO: make indexing consistent between un/padded fields
@@ -114,7 +114,7 @@ def main():
    omegavec = np.reshape(omegavec, (l-1, m-1, n+1), order='C')
 
    #compute vertical BC values from Neumann BC solution
-   lbc = omegavec[0,:,:] - hdiv[0, 1:-1,:] * dp
+   lbc = (omegavec[0,:,:] - hdiv[0, 1:-1,:] * dp) * 0
    ubc = np.zeros_like(lbc) #omegavec[-1,:,:] + hdiv[-1, 1:-1,:] * dp !UBC
    #print(lbc.shape, ubc.shape, omegavec.shape)
    omegavec = np.concatenate((lbc[None,:,:], omegavec, ubc[None,:,:]), axis=0)
@@ -344,8 +344,8 @@ def matLHS(DS):
             A[r,c] = (f0 / dp)**2 / sigmavec[r]
          if r == c:
             #print(f0, sigmavec[r], dp)
-            if ir == 0: #or ir == l-1: !UBC
-               A[r,c] += (f0 / dp)**2/sigmavec[r]
+            #if ir == 0: #or ir == l-1: !UBC
+            #   A[r,c] += (f0 / dp)**2/sigmavec[r]
             A[r,c] += -2*(f0 / dp)**2/sigmavec[r] + op3vec[r]
 
    return A

@@ -28,11 +28,6 @@ dp = 7.5e3 #Pa
 dy = a * 2.5*np.pi/180 #m
 dlamb = 2.5*np.pi/180 #rad
 
-ULEV = 250.
-MLEV = 550.
-LLEV = 700.
-BNDS = [80, 170, 30, 60]
-
 def main():
    U = xr.open_dataset('%suwnd.%s.nc' % (DATADIR, YEAR)).uwnd
    V = xr.open_dataset('%svwnd.%s.nc' % (DATADIR, YEAR)).vwnd
@@ -40,7 +35,7 @@ def main():
    Z = xr.open_dataset('%shgt.%s.nc' % (DATADIR, YEAR)).hgt
    OMEGA = xr.open_dataset('%somega.%s.nc' % (DATADIR, YEAR)).omega
    DS = xr.Dataset(data_vars = {'U': U, 'V': V, 'T': T, 'Z': Z, 'OMEGA': OMEGA})
-   DS = DS.sel(lat=slice(75., 27.4))
+   DS = DS.sel(lat=slice(70., 25))
    DS = DS.reindex(lat = DS.lat.values[::-1]).fillna(0)#.sel(time = DS.time.values[115])
    DS = DS.interp(level=np.arange(1000,99,-dp/100))
    DS = DS.assign(dx=lambda x: a * np.cos(x.lat*np.pi/180) * dlamb)
@@ -62,8 +57,12 @@ def main():
    plt.savefig('matrix.png')
    plt.close()
 
-   np.save('Lapmat.%s.npy' % YEAR, Lmat)
-   np.save('QGomegaLHS_mat.%s.npy' % YEAR, A)
+   #np.save('Lapmat.%s.npy' % YEAR, Lmat)
+   np.save('QGomegaLHS_mat.%s.npy' % YEAR, A) 
+
+   print('Generating ageo wind Laplacian matrix...')
+   Lmat_ag = lapmat(DS, latm=0)
+   np.save('Lapmat_ag.%s.npy' % YEAR, Lmat_ag)
 
 def sigmastab(DS):
    #static stability parameter on interior pressure levels
