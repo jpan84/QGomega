@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 
-PTICKS = [100, 200, 300, 400, 500, 600, 700, 850, 1000]
+PTICKS = [150, 200, 300, 400, 500, 600, 700, 850, 925]
 
 ds = xr.open_dataset('qgomega.nc')
 qgomega = ds.OMEGAQG
@@ -36,20 +36,22 @@ plt.close()
 
 figsize = (6, 4)
 clabelkwargs = {'inline': 1, 'fontsize': 10, 'colors': 'black', 'fmt': '%.2f'}
-contourkwargs = {'colors': clabelkwargs['colors'], 'levels': np.arange(-5, 5.1, 0.02)}
-slc = ds.OMEGAQG.sel(lat=slice(30, 55), lon = slice(117, 124))
+contourkwargs = {'colors': clabelkwargs['colors'], 'levels': np.arange(-5, 0, 0.02)}
+contourkwargs['levels'] = np.concatenate((contourkwargs['levels'], -contourkwargs['levels'][::-1]))
+slc = ds.OMEGAQG.sel(lat=slice(25, 55), lon = slice(117, 124))
 slc2 = ds.OMEGA.sel(lat=slc.lat.values, lon=slc.lon.values)
 slc3 = ds.VAG.sel(lat=slc.lat.values, lon=slc.lon.values)
 slc, slc2, slc3 = slc.mean(dim='lon'), slc2.mean(dim='lon'), slc3.mean(dim='lon')
 plt.figure(figsize=figsize)
-csf = plt.contourf(slc.lat.values, slc.level.values, slc.values, cmap='BrBG_r', levels=15, norm=colors.TwoSlopeNorm(vcenter=0))
+csf = plt.contourf(slc.lat.values, slc.level.values, slc.values, cmap='BrBG_r', levels=np.arange(-0.05, 0.0501, 0.01))
 cs = plt.contour(slc2.lat.values, slc2.level.values, slc2.values, **contourkwargs)
 qv = plt.quiver(slc.lat, slc.level, slc3, -1e1 * slc.values, pivot='mid', scale=1e1, color='red')
 plt.quiverkey(qv, X=.75, Y=-0.1, U=1, label='1 m s$^{-1}$ 0.1 Pa s$^{-1}$', labelpos='E')
-plt.xlabel('Longitude [°]')
+plt.xlabel('Latitude [°]')
 plt.ylabel('p [hPa]')
 plt.title('%s %s\nShading: $\omega_{QG}\hspace{0.5} [Pa \hspace{0.5} s^{-1}]$; Contours: $\omega_{RA}$; Vectors: in-plane $\\vec{v}_{ag}$ (QG approx.)' % ('°E', '28 Jun–12 Jul'))
-plt.yscale('log')
+plt.ylim(150, 925)
+#plt.yscale('log')
 plt.yticks(PTICKS, labels=PTICKS)
 plt.gca().invert_yaxis()
 plt.clabel(cs, **clabelkwargs)

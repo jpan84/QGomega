@@ -13,7 +13,7 @@ import matplotlib.colors as colors
 import cartopy.crs as ccrs
 
 DATADIR = './'
-YEAR = '9999'
+YEAR = '20030'
 tstr = '28 Jun–12 Jul'
 
 Rd = 287.06 #J kg-1 K-1
