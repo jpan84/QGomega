@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 
-PTICKS = [150, 200, 300, 400, 500, 600, 700, 850, 925]
+PTICKS = [100, 200, 300, 400, 500, 600, 700, 850, 925, 975]
 
 ds = xr.open_dataset('qgomega.nc')
 qgomega = ds.OMEGAQG
@@ -45,12 +45,12 @@ slc, slc2, slc3 = slc.mean(dim='lon'), slc2.mean(dim='lon'), slc3.mean(dim='lon'
 plt.figure(figsize=figsize)
 csf = plt.contourf(slc.lat.values, slc.level.values, slc.values, cmap='BrBG_r', levels=np.arange(-0.05, 0.0501, 0.01))
 cs = plt.contour(slc2.lat.values, slc2.level.values, slc2.values, **contourkwargs)
-qv = plt.quiver(slc.lat, slc.level, slc3, -1e1 * slc.values, pivot='mid', scale=5, color='red')
-plt.quiverkey(qv, X=.75, Y=-0.1, U=0.5, label='0.5 m s$^{-1}$ 0.05 Pa s$^{-1}$', labelpos='E')
+qv = plt.quiver(slc.lat, slc.level, slc3, -2e1 * slc.values, pivot='mid', scale=10, color='red')
+plt.quiverkey(qv, X=.75, Y=-0.1, U=1, label='1 m s$^{-1}$ 0.05 Pa s$^{-1}$', labelpos='E')
 plt.xlabel('Latitude [°]')
 plt.ylabel('p [hPa]')
 plt.title('(b) %s %s\nShading: $\omega_{QG}\hspace{0.5} [Pa \hspace{0.5} s^{-1}]$; Contours: $\omega_{RA}$; Vectors: in-plane $\\vec{v}_{ag}$ (QG approx.)\n' % ('°117-124°E', '28 Jun–12 Jul'))
-plt.ylim(150, 925)
+plt.ylim(100, 975)
 #plt.yscale('log')
 plt.yticks(PTICKS, labels=PTICKS)
 plt.gca().invert_yaxis()
@@ -73,12 +73,12 @@ slc, slc2, slc3, slc4 = slc.mean(dim='lon'), slc2.mean(dim='lon'), slc3.mean(dim
 plt.figure(figsize=figsize)
 csf = plt.contourf(slc.lat.values, slc.level.values, slc.values, cmap='BrBG', levels=1e-13 * np.arange(-10, 10.1, 2.5), extend='both')
 cs = plt.contour(slc4.lat.values, slc4.level.values, slc4.values, **contourkwargs)
-qv = plt.quiver(slc.lat, slc.level, slc3, -1e1 * slc2.values, pivot='mid', scale=5, color='red')
-plt.quiverkey(qv, X=-.25, Y=-0.1, U=0.5, label='0.5 m s$^{-1}$ 0.05 Pa s$^{-1}$', labelpos='E')
+qv = plt.quiver(slc.lat, slc.level, slc3, -2e1 * slc2.values, pivot='mid', scale=10, color='red')
+plt.quiverkey(qv, X=-.25, Y=-0.1, U=1, label='1 m s$^{-1}$ 0.05 Pa s$^{-1}$', labelpos='E')
 plt.xlabel('Latitude [°]')
 plt.ylabel('p [hPa]')
 plt.title('(c) %s %s\nShading: QG $T_{adv}$ forcing [Pa m$^{-2}$ $s^{-1}$]; Contours: $\\theta$ [K]; Vectors: in-plane $\\vec{v}_{ag}$ (QG approx.)\n' % ('117–124°E', '28 Jun–12 Jul'))
-plt.ylim(150, 925)
+plt.ylim(100, 975)
 #plt.yscale('log')
 plt.yticks(PTICKS, labels=PTICKS)
 plt.gca().invert_yaxis()
