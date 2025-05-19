@@ -55,10 +55,13 @@ def main():
    #x-p plane v, T, Z
    plt.rcParams['figure.figsize'] = (12, 6)
    yslc = (slice(None), 50, slice(None))
-   csf = plt.contourf(xg[yslc], pg[yslc], Tp[yslc], cmap='bwr')
-   plt.contour(xg[yslc], pg[yslc], Zp[yslc], levels=Zlevs, colors='black')
-   plt.contour(xg[yslc], pg[yslc], vp[yslc], levels=vlevs, colors='green')
-   plt.xlabel('x [m]')
+   lonplt = xg[yslc] / a / np.cos(lat0) * 180 / np.pi 
+   csf = plt.contourf(lonplt, pg[yslc], Tp[yslc], cmap='bwr')
+   plt.contour(lonplt, pg[yslc], Zp[yslc], levels=Zlevs, colors='black')
+   #plt.contour(lonplt, pg[yslc], vp[yslc], levels=vlevs, colors='green')
+   plt.xlim(0, 90)
+   plt.xlabel('lon')
+   plt.title('Contours: Z anomaly (interval 60 m)\nShading: T anomaly [K]')
    plt_paxis_adj()
    plt.colorbar(csf)
    #plt.show()
@@ -128,6 +131,20 @@ def main():
    plt.savefig('yp_WTA.png')
    plt.close()
 
+   #plot zonal-mean eigval solution cleanly
+   v_TA_QG = -dens0 * g * W0_zm * evp / evy * (np.cos(evy * yg) * np.cos(evp * (pg - 2.5e4)))[0, ...]
+   DTADIAB_TAresp = -wTA_zm * N2 * T0 / g
+   print(wTA_zm.max(), np.nanmean(wTA_zm * N2 * T0 / g / DT_ADV))
+   csf = plt.contourf(yg[0, ...] / 1e3, pg[0, ...], DT_ADV * 86400, cmap='bwr')
+   cs = plt.contour(yg[0, ...] / 1e3, pg[0, ...], DTADIAB_TAresp * 86400, levels=[-1.5, -1, -0.5, 0.5, 1, 1.5], colors='black')   
+   qv = plt.quiver(yg[0, ::8, ::4] / 1e3, pg[0, ::8, ::4], v_TA_QG[::8, ::4], wTA_zm[::8, ::4] * 100, pivot='mid', scale=1e1, width=5e-3)
+   plt.quiverkey(qv, X=0.75, Y=-0.1, U=1, label='1 m, cm s$^{-1}$', labelpos='E')
+   plt_paxis_adj()
+   plt.clabel(cs, fmt='%.1f', inline=1, colors='black')
+   plt.xlabel('y [km]')
+   plt.colorbar(csf, label='T advection [K day$^{-1}$]')
+   plt.savefig('yp_QG.png')
+   plt.close()
 
    th_vert = T0 * (1 + N2 / dens0 / g**2 * (p0 - pg))
    th_bg = th_vert * (1 + g2(yg))
@@ -155,6 +172,23 @@ def main():
    plt.savefig('xp_Tadv_bg.png')
    plt.close()
 
+   #x-y plane T adv
+   up = -g / f0 * diffy(Zp, yg)
+   #print(up.max(), vp.max())
+   pltadv = -(-Tadv_bg + up.real * diffx(Tp).real + vp.real * diffy(Tp.real, yg)) * 86400
+   pslc = (slice(None), slice(None), 18)
+   lonplt = xg[pslc] / a / np.cos(lat0) * 180 / np.pi 
+   csf = plt.contourf(lonplt, yg[pslc] / 1e3, pltadv[pslc], cmap='bwr')
+   plt.contour(lonplt, yg[pslc] / 1e3, Zp[pslc], levels=Zlevs, colors='black')
+   qvslc = (slice(None, None, 4), slice(None, None, 4), 18)
+   qv = plt.quiver(lonplt[::4, ::4], yg[qvslc] / 1e3, (U_bg + up.real)[qvslc], vp[qvslc], pivot='mid', scale=1e3)
+   plt.quiverkey(qv, X=0.75, Y=-0.1, U=20, label='20 m s$^{-1}$', labelpos='E')
+   plt.xlabel('lon')
+   plt.colorbar(csf)
+   plt.title('%d hPa\tContours: Z anomaly [interval 60 m]\nShading: T advection [K day$^{-1}$]' % (pg[pslc].min() / 100))
+   plt.savefig('xy_Z_vTA.png')
+   plt.close()
+
    rv =  g / f0 * (diffx(diffx(Zp)) + f(xg) * diff2_g1(yg) * (Zamp + Rd * Tamp / g * 1j * h_int(pg)))
    #x-p plane relvort, Z
    csf = plt.contourf(xg[yslc], pg[yslc], rv[yslc], cmap='bwr')
@@ -164,6 +198,17 @@ def main():
    plt.colorbar(csf)
    #plt.show()
    plt.savefig('xp_rv_Z.png')
+   plt.close()
+
+   rvadv = -U_bg * diffx(rv)
+   #x-p plane Z, relvort advection
+   csf = plt.contourf(xg[yslc], pg[yslc], rvadv[yslc], cmap='bwr')
+   plt.contour(xg[yslc], pg[yslc], Zp[yslc], levels=Zlevs, colors='black')
+   plt.xlabel('x [m]')
+   plt_paxis_adj()
+   plt.colorbar(csf)
+   #plt.show()
+   plt.savefig('xp_Z_rva.png')
    plt.close()
 
    #x-y plane Z, EHF
