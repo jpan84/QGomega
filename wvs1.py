@@ -30,10 +30,12 @@ Zlevs = np.concatenate((-Zlevs[::-1], Zlevs))
 Ulevs = np.arange(10, 100, 10)
 vlevs = np.arange(5, 30, 5)
 vlevs = np.concatenate((-vlevs[::-1], vlevs))
-wlevs = 1e-3 * np.arange(1, 6)
+wlevs = 1e-3 * np.arange(1, 10)
 wlevs = np.concatenate((-wlevs[::-1], wlevs))
 Tlevs = np.arange(2, 11, 2)
 Tlevs = np.concatenate((-Tlevs[::-1], Tlevs))
+adiablevs = np.arange(1, 5) # K/day
+adiablevs = np.concatenate((-adiablevs[::-1], adiablevs))
 plabs = np.array([300, 400, 500, 600, 700, 850, 1000])
 psilevs = 1e10 * 2.**np.arange(0, 10)
 thlevs = np.arange(250, 400, 5)
@@ -49,6 +51,7 @@ def main():
    Tp = Tamp * 1j * f(xg) * g1(yg) * h(pg)
    Z0 = Zamp * f(xg) * g1(yg)
    Zp = Z0 + f(xg) * g1(yg) * Rd * Tamp / g * 1j * h_int(pg)
+   up = -g / f0 * diffy(Zp, yg)
    vp = g / f0 * diffx(Zp)
    print(vp.max())
 
@@ -56,7 +59,7 @@ def main():
    plt.rcParams['figure.figsize'] = (12, 6)
    yslc = (slice(None), 50, slice(None))
    lonplt = xg[yslc] / a / np.cos(lat0) * 180 / np.pi 
-   csf = plt.contourf(lonplt, pg[yslc], Tp[yslc], cmap='bwr')
+   csf = plt.contourf(lonplt, pg[yslc], Tp[yslc], cmap='RdBu_r')
    plt.contour(lonplt, pg[yslc], Zp[yslc], levels=Zlevs, colors='black')
    #plt.contour(lonplt, pg[yslc], vp[yslc], levels=vlevs, colors='green')
    plt.xlim(0, 90)
@@ -81,23 +84,40 @@ def main():
    #x-y plane Z, EHF
    #print(pg[..., 18])
    pslc = (slice(None), slice(None), 18)
-   csf = plt.contourf(xg[pslc], yg[pslc], vpTp[pslc], cmap='bwr', norm=colors.TwoSlopeNorm(0))
-   plt.contour(xg[pslc], yg[pslc], Zp[pslc], levels=Zlevs, colors='black')
+   lonplt = xg[pslc] / a / np.cos(lat0) * 180 / np.pi
+   csf = plt.contourf(lonplt, yg[pslc] / 1e3, vpTp[pslc], cmap='bwr', norm=colors.TwoSlopeNorm(0))
+   plt.contour(lonplt, yg[pslc] / 1e3, Zp[pslc], levels=Zlevs, colors='black')
+   plt.title('%d hPa     Contours: Z anomaly (interval 60 m)\nShading: EHF v\'T\' [K m s$^{-1}$]' % (pg[pslc].min() / 100))
+   plt.xlabel('lon')
+   plt.ylabel('y [km]')
    plt.colorbar(csf)
    plt.savefig('xy_Z_vT.png')
    plt.close()
 
    DT_EHF = -EHFd(vpTp, yg)
    PSI_vT = g / T0 / N2 * vpTp.mean(axis=0) * 2 * np.pi * a * np.cos(lat0)
+   DT_ADIAB = -N2 * T0 / g * EHFd(PSI_vT[None, ...], yg) / 2 / np.pi / a / np.cos(lat0) #= w N^2 T0/g
    print(PSI_vT.max())
    #y-p plane EHF heating rate, streamfunc response
-   csf = plt.contourf(yg[0, ...], pg[0, ...], DT_EHF.mean(axis=0), cmap='bwr')
-   plt.contour(yg[0, ...], pg[0, ...], PSI_vT, levels=psilevs, colors='black')
+   csf = plt.contourf(yg[0, ...] / 1e3, pg[0, ...], DT_ADIAB.mean(axis=0) * 86400, cmap='bwr')
+   cs = plt.contour(yg[0, ...] / 1e3, pg[0, ...], PSI_vT / 1e10, levels=psilevs / 1e10, colors='black')
+   plt.clabel(cs, fmt='%d', inline=1, colors='black')
    plt_paxis_adj()
+   plt.xlabel('y [km]')
+   plt.title('Contours: Residual streamfunction $\\bar{\Psi}^*$, vT term [10$^{10}$ kg s$^{-1}$]')
+   plt.colorbar(csf, label='adiabatic warming associated with $\\bar{\Psi}^*$ [K day$^{-1}$]')
+   plt.savefig('yp_DTADIAB.png')
+   plt.close()
+   csf = plt.contourf(lonplt, yg[pslc] / 1e3, DT_EHF[pslc] * 86400, cmap='bwr', norm=colors.TwoSlopeNorm(0))
+   plt.contour(lonplt, yg[pslc] / 1e3, Zp[pslc], levels=Zlevs, colors='black')
+   plt.title('%d hPa     Contours: Z anomaly (interval 60 m)\nShading: Convergence of v\'T\' [K day$^{-1}$]' % (pg[pslc].min() / 100))
+   plt.xlabel('lon')
+   plt.ylabel('y [km]')
    plt.colorbar(csf)
-   plt.savefig('yp_DTEHF.png')
+   plt.savefig('xy_DTEHF.png')
    plt.close()
 
+   '''
    #y-p plane streamfunc response, adiab DT
    DT_ADIAB = -N2 * T0 / g * EHFd(PSI_vT[None, ...], yg) / 2 / np.pi / a / np.cos(lat0) #= w N^2 T0/g
    csf = plt.contourf(yg[0, ...], pg[0, ...], DT_ADIAB.mean(axis=0), cmap='bwr')
@@ -106,12 +126,13 @@ def main():
    plt.colorbar(csf)
    plt.savefig('yp_DTADIAB.png')
    plt.close()
+   '''
 
    #zonal-mean temp advection
-   DT_ADV = -(vp.real * diffy(Tp.real, yg)).mean(axis=0)
-   DT_ADV_EIG = 4.5e-5 * eigy(yg)[0] * eigp(pg)[0]
+   DT_ADV = -(up.real * diffx(Tp).real + vp.real * diffy(Tp.real, yg)).mean(axis=0)
+   DT_ADV_EIG = DT_ADV.max() * eigy(yg)[0] * eigp(pg)[0]
    csf = plt.contourf(yg[0, ...], pg[0, ...], DT_ADV, cmap='bwr')
-   plt.contour(yg[0, ...], pg[0, ...], DT_ADV_EIG[0, ...], levels=1e-5*np.arange(-4.5, 5, 1.5), colors='black')
+   plt.contour(yg[0, ...], pg[0, ...], DT_ADV_EIG[0, ...], levels=1e-5*np.arange(-10, 11, 2.5), colors='black')
    plt_paxis_adj()
    plt.colorbar(csf)
    plt.savefig('yp_DTADV.png')
@@ -119,13 +140,13 @@ def main():
 
    #zonal-mean QG eigval solution
    evy, evp = eigy(0)[1], eigp(0)[1]
-   W0_zm = g * 4.5e-5 * evy**2 / N2 / T0 / (evy**2 + (dens0 * g * f0 * evp)**2 / N2)
+   W0_zm = g * DT_ADV.max() * evy**2 / N2 / T0 / (evy**2 + (dens0 * g * f0 * evp)**2 / N2)
    wTA_zm = (W0_zm * eigy(yg)[0] * eigp(pg)[0])[0, ...]
    w_vT = g / N2 / T0 * EHFd(vpTp, yg)
    print(wTA_zm.max(), np.nanmean(wTA_zm * N2 * T0 / g / DT_ADV))
    csf = plt.contourf(yg[0, ...], pg[0, ...], DT_ADV, cmap='bwr')
    plt.contour(yg[0, ...], pg[0, ...], wTA_zm, levels=wlevs, colors='black')
-   plt.contour(yg[0, ...], pg[0, ...], w_vT.mean(axis=0), levels=wlevs * 5, colors='red')
+   plt.contour(yg[0, ...], pg[0, ...], w_vT.mean(axis=0), levels=wlevs * 3, colors='red')
    plt_paxis_adj()
    plt.colorbar(csf)
    plt.savefig('yp_WTA.png')
@@ -136,11 +157,12 @@ def main():
    DTADIAB_TAresp = -wTA_zm * N2 * T0 / g
    print(wTA_zm.max(), np.nanmean(wTA_zm * N2 * T0 / g / DT_ADV))
    csf = plt.contourf(yg[0, ...] / 1e3, pg[0, ...], DT_ADV * 86400, cmap='bwr')
-   cs = plt.contour(yg[0, ...] / 1e3, pg[0, ...], DTADIAB_TAresp * 86400, levels=[-1.5, -1, -0.5, 0.5, 1, 1.5], colors='black')   
+   cs = plt.contour(yg[0, ...] / 1e3, pg[0, ...], DTADIAB_TAresp * 86400, levels=adiablevs, colors='purple')   
    qv = plt.quiver(yg[0, ::8, ::4] / 1e3, pg[0, ::8, ::4], v_TA_QG[::8, ::4], wTA_zm[::8, ::4] * 100, pivot='mid', scale=1e1, width=5e-3)
    plt.quiverkey(qv, X=0.75, Y=-0.1, U=1, label='1 m, cm s$^{-1}$', labelpos='E')
    plt_paxis_adj()
-   plt.clabel(cs, fmt='%.1f', inline=1, colors='black')
+   plt.clabel(cs, fmt='%d', inline=1, colors='purple')
+   plt.title('Contours: adiabatic T tendency induced by QG secondary circulation [K day$^{-1}$]', color='purple')
    plt.xlabel('y [km]')
    plt.colorbar(csf, label='T advection [K day$^{-1}$]')
    plt.savefig('yp_QG.png')
@@ -177,7 +199,7 @@ def main():
    #print(up.max(), vp.max())
    pltadv = -(-Tadv_bg + up.real * diffx(Tp).real + vp.real * diffy(Tp.real, yg) + vp * th_y * (pg / p0)**kap) * 86400
    pltadv1 = -(up.real * diffx(Tp).real + vp.real * diffy(Tp.real, yg)).mean(axis=0) * 86400
-   print('maxdiff', abs(pltadv1.mean(axis=0) - pltadv).max())
+   print('maxdiff', abs(pltadv.mean(axis=0) - pltadv1).max())
    pslc = (slice(None), slice(None), 18)
    lonplt = xg[pslc] / a / np.cos(lat0) * 180 / np.pi 
    csf = plt.contourf(lonplt, yg[pslc] / 1e3, pltadv[pslc], cmap='bwr')
@@ -186,8 +208,9 @@ def main():
    qv = plt.quiver(lonplt[::4, ::4], yg[qvslc] / 1e3, (U_bg + up.real)[qvslc], vp[qvslc], pivot='mid', scale=1e3)
    plt.quiverkey(qv, X=0.75, Y=-0.1, U=20, label='20 m s$^{-1}$', labelpos='E')
    plt.xlabel('lon')
+   plt.ylabel('y [km]')
    plt.colorbar(csf)
-   plt.title('%d hPa\tContours: Z anomaly [interval 60 m]\nShading: T advection [K day$^{-1}$]' % (pg[pslc].min() / 100))
+   plt.title('%d hPa      Contours: Z anomaly [interval 60 m]\nShading: T advection [K day$^{-1}$]' % (pg[pslc].min() / 100))
    plt.savefig('xy_Z_vTA.png')
    plt.close()
    #zonal-mean temp advection
@@ -195,6 +218,19 @@ def main():
    plt_paxis_adj()
    plt.colorbar(csf)
    plt.savefig('total_TA_check.png')
+   plt.close()
+
+   #x-y plane T total
+   csf = plt.contourf(lonplt, yg[pslc] / 1e3, (th_bg * (pg / p0)**kap + Tp)[pslc] - 273.15, cmap='RdYlBu_r')
+   plt.contour(lonplt, yg[pslc] / 1e3, Zp[pslc], levels=Zlevs, colors='black')
+   qvslc = (slice(None, None, 4), slice(None, None, 4), 18)
+   qv = plt.quiver(lonplt[::4, ::4], yg[qvslc] / 1e3, (U_bg + up.real)[qvslc], vp[qvslc], pivot='mid', scale=1e3)
+   plt.quiverkey(qv, X=0.75, Y=-0.1, U=20, label='20 m s$^{-1}$', labelpos='E')
+   plt.xlabel('lon')
+   plt.ylabel('y [km]')
+   plt.colorbar(csf)
+   plt.title('%d hPa      Contours: Z anomaly [interval 60 m]\nShading: T [°C]' % (pg[pslc].min() / 100))
+   plt.savefig('xy_Zp_Ttot_Vtot.png')
    plt.close()
 
    rv =  g / f0 * (diffx(diffx(Zp)) + f(xg) * diff2_g1(yg) * (Zamp + Rd * Tamp / g * 1j * h_int(pg)))
