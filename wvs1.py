@@ -175,7 +175,9 @@ def main():
    #x-y plane T adv
    up = -g / f0 * diffy(Zp, yg)
    #print(up.max(), vp.max())
-   pltadv = -(-Tadv_bg + up.real * diffx(Tp).real + vp.real * diffy(Tp.real, yg)) * 86400
+   pltadv = -(-Tadv_bg + up.real * diffx(Tp).real + vp.real * diffy(Tp.real, yg) + vp * th_y * (pg / p0)**kap) * 86400
+   pltadv1 = -(up.real * diffx(Tp).real + vp.real * diffy(Tp.real, yg)).mean(axis=0) * 86400
+   print('maxdiff', abs(pltadv1.mean(axis=0) - pltadv).max())
    pslc = (slice(None), slice(None), 18)
    lonplt = xg[pslc] / a / np.cos(lat0) * 180 / np.pi 
    csf = plt.contourf(lonplt, yg[pslc] / 1e3, pltadv[pslc], cmap='bwr')
@@ -187,6 +189,12 @@ def main():
    plt.colorbar(csf)
    plt.title('%d hPa\tContours: Z anomaly [interval 60 m]\nShading: T advection [K day$^{-1}$]' % (pg[pslc].min() / 100))
    plt.savefig('xy_Z_vTA.png')
+   plt.close()
+   #zonal-mean temp advection
+   csf = plt.contourf(yg[0, ...], pg[0, ...], pltadv1, cmap='bwr')
+   plt_paxis_adj()
+   plt.colorbar(csf)
+   plt.savefig('total_TA_check.png')
    plt.close()
 
    rv =  g / f0 * (diffx(diffx(Zp)) + f(xg) * diff2_g1(yg) * (Zamp + Rd * Tamp / g * 1j * h_int(pg)))
