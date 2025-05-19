@@ -30,6 +30,8 @@ Zlevs = np.concatenate((-Zlevs[::-1], Zlevs))
 Ulevs = np.arange(10, 100, 10)
 vlevs = np.arange(5, 30, 5)
 vlevs = np.concatenate((-vlevs[::-1], vlevs))
+wlevs = 1e-3 * np.arange(1, 6)
+wlevs = np.concatenate((-wlevs[::-1], wlevs))
 Tlevs = np.arange(2, 11, 2)
 Tlevs = np.concatenate((-Tlevs[::-1], Tlevs))
 plabs = np.array([300, 400, 500, 600, 700, 850, 1000])
@@ -104,11 +106,28 @@ def main():
 
    #zonal-mean temp advection
    DT_ADV = -(vp.real * diffy(Tp.real, yg)).mean(axis=0)
-   plt.contourf(yg[0, ...], pg[0, ...], DT_ADV, cmap='bwr')
+   DT_ADV_EIG = 4.5e-5 * eigy(yg)[0] * eigp(pg)[0]
+   csf = plt.contourf(yg[0, ...], pg[0, ...], DT_ADV, cmap='bwr')
+   plt.contour(yg[0, ...], pg[0, ...], DT_ADV_EIG[0, ...], levels=1e-5*np.arange(-4.5, 5, 1.5), colors='black')
    plt_paxis_adj()
-   plt.colorbar()
+   plt.colorbar(csf)
    plt.savefig('yp_DTADV.png')
    plt.close()
+
+   #zonal-mean QG eigval solution
+   evy, evp = eigy(0)[1], eigp(0)[1]
+   W0_zm = g * 4.5e-5 * evy**2 / N2 / T0 / (evy**2 + (dens0 * g * f0 * evp)**2 / N2)
+   wTA_zm = (W0_zm * eigy(yg)[0] * eigp(pg)[0])[0, ...]
+   w_vT = g / N2 / T0 * EHFd(vpTp, yg)
+   print(wTA_zm.max(), np.nanmean(wTA_zm * N2 * T0 / g / DT_ADV))
+   csf = plt.contourf(yg[0, ...], pg[0, ...], DT_ADV, cmap='bwr')
+   plt.contour(yg[0, ...], pg[0, ...], wTA_zm, levels=wlevs, colors='black')
+   plt.contour(yg[0, ...], pg[0, ...], w_vT.mean(axis=0), levels=wlevs * 5, colors='red')
+   plt_paxis_adj()
+   plt.colorbar(csf)
+   plt.savefig('yp_WTA.png')
+   plt.close()
+
 
    th_vert = T0 * (1 + N2 / dens0 / g**2 * (p0 - pg))
    th_bg = th_vert * (1 + g2(yg))
@@ -168,6 +187,9 @@ def g1(y):
 def g2(y):
    return 1e4 * EHFd(g1(y)**2, y)
 
+def eigy(y, coef=np.pi / 1e6):
+   return np.sin(coef * y), coef
+
 #y derivative of squared perturbations
 def EHFd(ehf, y):
    return -2 / 1e6**2 * 2 * y * ehf
@@ -184,6 +206,9 @@ def diff2_g1sq(y):
 
 def h(p):
    return np.dot(abc, np.array([p**2, p, 1]))
+
+def eigp(p, coef=np.pi/7.5e4):
+   return np.sin(coef * (p - 2.5e4)), coef
 
 def h_int(p):
    #return np.dot(abc, np.array([(p0**2 - p**2) / 2, p0 - p, np.log(p0 / p)]))
