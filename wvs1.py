@@ -264,6 +264,40 @@ def main():
    plt.savefig('xy_rv_Z.png')
    plt.close()
 
+   ################ PV/vort section below #######################
+   psip = g / f0 * Zp
+   qp = diffx(diffx(psip)) + diff2_g1(yg) / g1(yg) * psip\
+        - f0 * dens0**2 * g**2 / N2 * f(xg) * g1(yg) * Rd * Tamp * 1j * dh(pg)
+   #qp = - f0 * dens0**2 * g**2 / N2 * f(xg) * g1(yg) * Rd * Tamp * 1j * dh(pg)
+   #gemini: qp = f0 * g**2 / N2 / Rd / T0**2 * (Tp + pg * 1j * Tamp * f(xg) * g1(yg) * dh(pg))
+   #x-p plane Z, q'
+   lonplt = xg[yslc] / a / np.cos(lat0) * 180 / np.pi
+   csf = plt.contourf(lonplt, pg[yslc], qp[yslc], cmap='BrBG')
+   plt.contour(lonplt, pg[yslc], Zp[yslc], levels=Zlevs, colors='black')
+   plt.xlim(0, 90)
+   plt.xlabel('lon')
+   plt.title('Contours: Z anomaly (interval 60 m)\nShading: q\' [s$^{-1}$]')
+   plt_paxis_adj()
+   plt.colorbar(csf)
+   #plt.show()
+   plt.savefig('xp_Z_qp.png')
+   plt.close()
+
+   #x-p plane Z, v'q'
+   vpqp = vp.real * qp.real
+   lonplt = xg[yslc] / a / np.cos(lat0) * 180 / np.pi
+   csf = plt.contourf(lonplt, pg[yslc], vpqp[yslc], cmap='PuOr_r')
+   plt.contour(lonplt, pg[yslc], Zp[yslc], levels=Zlevs, colors='black')
+   plt.xlim(0, 90)
+   plt.xlabel('lon')
+   plt.title('Contours: Z anomaly (interval 60 m)\nShading: v\'q\' [m s$^{-2}$]')
+   plt_paxis_adj()
+   plt.colorbar(csf)
+   #plt.show()
+   plt.savefig('xp_Z_vpqp.png')
+   plt.close()
+
+
 def f(x):
    return np.exp(4j * x / a / np.cos(lat0))
 
@@ -295,6 +329,9 @@ def diff2_g1sq(y):
 
 def h(p):
    return np.dot(abc, np.array([p**2, p, 1]))
+
+def dh(p):
+   return 2 * abc[0] * p + abc[1]
 
 def eigp(p, coef=np.pi/7.5e4):
    return np.sin(coef * (p - 2.5e4)), coef
