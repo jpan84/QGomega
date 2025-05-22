@@ -267,7 +267,7 @@ def main():
    ################ PV/vort section below #######################
    psip = g / f0 * Zp
    qp = diffx(diffx(psip)) + diff2_g1(yg) / g1(yg) * psip\
-        - f0 * dens0**2 * g**2 / N2 * f(xg) * g1(yg) * Rd * Tamp * 1j * d2_hint(pg)
+        + f0 * dens0**2 * g**2 / N2 * f(xg) * g1(yg) * Rd * Tamp * 1j * d2_hint(pg)
    #qp = - f0 * dens0**2 * g**2 / N2 * f(xg) * g1(yg) * Rd * Tamp * 1j * d2_hint(pg)
    #x-p plane Z, q'
    lonplt = xg[yslc] / a / np.cos(lat0) * 180 / np.pi
