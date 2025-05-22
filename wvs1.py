@@ -267,9 +267,8 @@ def main():
    ################ PV/vort section below #######################
    psip = g / f0 * Zp
    qp = diffx(diffx(psip)) + diff2_g1(yg) / g1(yg) * psip\
-        - f0 * dens0**2 * g**2 / N2 * f(xg) * g1(yg) * Rd * Tamp * 1j * dh(pg)
-   #qp = - f0 * dens0**2 * g**2 / N2 * f(xg) * g1(yg) * Rd * Tamp * 1j * dh(pg)
-   #gemini: qp = f0 * g**2 / N2 / Rd / T0**2 * (Tp + pg * 1j * Tamp * f(xg) * g1(yg) * dh(pg))
+        - f0 * dens0**2 * g**2 / N2 * f(xg) * g1(yg) * Rd * Tamp * 1j * d2_hint(pg)
+   #qp = - f0 * dens0**2 * g**2 / N2 * f(xg) * g1(yg) * Rd * Tamp * 1j * d2_hint(pg)
    #x-p plane Z, q'
    lonplt = xg[yslc] / a / np.cos(lat0) * 180 / np.pi
    csf = plt.contourf(lonplt, pg[yslc], qp[yslc], cmap='BrBG')
@@ -286,7 +285,7 @@ def main():
    #x-p plane Z, v'q'
    vpqp = vp.real * qp.real
    lonplt = xg[yslc] / a / np.cos(lat0) * 180 / np.pi
-   csf = plt.contourf(lonplt, pg[yslc], vpqp[yslc], cmap='PuOr_r')
+   csf = plt.contourf(lonplt, pg[yslc], vpqp[yslc], cmap='PuOr_r', norm=colors.TwoSlopeNorm(0))
    plt.contour(lonplt, pg[yslc], Zp[yslc], levels=Zlevs, colors='black')
    plt.xlim(0, 90)
    plt.xlabel('lon')
@@ -295,6 +294,30 @@ def main():
    plt.colorbar(csf)
    #plt.show()
    plt.savefig('xp_Z_vpqp.png')
+   plt.close()
+
+   #x-y plane Z, v'q'
+   #print(pg[..., 2])
+   pslc = (slice(None), slice(None), 2)
+   lonplt = xg[pslc] / a / np.cos(lat0) * 180 / np.pi
+   csf = plt.contourf(lonplt, yg[pslc] / 1e3, vpqp[pslc], cmap='PuOr_r', norm=colors.TwoSlopeNorm(0))
+   plt.contour(lonplt, yg[pslc] / 1e3, Zp[pslc], levels=Zlevs, colors='black')
+   plt.title('%d hPa     Contours: Z anomaly (interval 60 m)\nShading: v\'q\' [m s$^{-2}$]' % (pg[pslc].min() / 100))
+   plt.xlabel('lon')
+   plt.ylabel('y [km]')
+   plt.colorbar(csf)
+   plt.savefig('xy_Z_vpqp.png')
+   plt.close()
+
+   #y-p plane vT streamfunc, v'q'
+   csf = plt.contourf(yg[0, ...] / 1e3, pg[0, ...], vpqp.mean(axis=0), cmap='PuOr_r', norm=colors.TwoSlopeNorm(0))
+   cs = plt.contour(yg[0, ...] / 1e3, pg[0, ...], PSI_vT / 1e10, levels=psilevs / 1e10, colors='black')
+   plt.clabel(cs, fmt='%d', inline=1, colors='black')
+   plt_paxis_adj()
+   plt.xlabel('y [km]')
+   plt.title('Contours: Residual streamfunction $\\bar{\Psi}^*$, vT term [10$^{10}$ kg s$^{-1}$]')
+   plt.colorbar(csf, label='v\'q\' [m s$^{-2}$]')
+   plt.savefig('yp_vpqp_PSIvT.png')
    plt.close()
 
 
@@ -330,8 +353,8 @@ def diff2_g1sq(y):
 def h(p):
    return np.dot(abc, np.array([p**2, p, 1]))
 
-def dh(p):
-   return 2 * abc[0] * p + abc[1]
+def d2_hint(p):
+   return -abc[0] + abc[2] / p**2
 
 def eigp(p, coef=np.pi/7.5e4):
    return np.sin(coef * (p - 2.5e4)), coef
