@@ -320,6 +320,17 @@ def main():
    plt.savefig('yp_vpqp_PSIvT.png')
    plt.close()
 
+   #y-p plane v'q', eigfunc approx
+   PVF_EIG = 4.2e-3 * eigy_pv(yg)[0] * eigp_pv(pg)[0]
+   csf = plt.contourf(yg[0, ...] / 1e3, pg[0, ...], vpqp.mean(axis=0), cmap='PuOr_r', norm=colors.TwoSlopeNorm(0))
+   cs = plt.contour(yg[0, ...] / 1e3, pg[0, ...], PVF_EIG[0, ...], levels=np.arange(-5e-3, 5.1e-3, 5e-4), colors='green')
+   plt_paxis_adj()
+   plt.xlabel('y [km]')
+   plt.title('Contours: Eigfunc approx')
+   plt.colorbar(csf, label='v\'q\' [m s$^{-2}$]')
+   plt.savefig('yp_vpqp_eig.png')
+   plt.close()
+
 
 def f(x):
    return np.exp(4j * x / a / np.cos(lat0))
@@ -335,6 +346,9 @@ def g2(y):
 
 def eigy(y, coef=np.pi / 1e6):
    return np.sin(coef * y), coef
+
+def eigy_pv(y, coef=np.pi / 2e6):
+   return np.cos(coef * y), coef
 
 #y derivative of squared perturbations
 def EHFd(ehf, y):
@@ -358,6 +372,9 @@ def d2_hint(p):
 
 def eigp(p, coef=np.pi/7.5e4):
    return np.sin(coef * (p - 2.5e4)), coef
+
+def eigp_pv(p, coef=np.pi / 1.4e5):
+   return np.sin(coef * (p - 4e4)), coef
 
 def h_int(p):
    #return np.dot(abc, np.array([(p0**2 - p**2) / 2, p0 - p, np.log(p0 / p)]))
