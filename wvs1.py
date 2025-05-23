@@ -354,6 +354,18 @@ def main():
    plt.savefig('yp_PVFc_PSIvT.png')
    plt.close()
 
+   U_tend_consts = Rd / f0 * 2 * g / f0 / a / np.cos(lat0) * Zamp * Tamp
+   U_tend = -U_tend_consts * diff2_g1sq(yg) * h_int_U(pg)
+   #y-p plane vT streamfunc, U_tend
+   csf = plt.contourf(yg[0, ...] / 1e3, pg[0, ...], U_tend[0, ...], cmap='bwr', norm=colors.TwoSlopeNorm(0))
+   cs = plt.contour(yg[0, ...] / 1e3, pg[0, ...], PSI_vT / 1e10, levels=psilevs / 1e10, colors='black')
+   plt.clabel(cs, fmt='%d', inline=1, colors='black')
+   plt_paxis_adj()
+   plt.xlabel('y [km]')
+   plt.title('Contours: Residual streamfunction $\\bar{\Psi}^*$, vT term [10$^{10}$ kg s$^{-1}$]')
+   plt.colorbar(csf, label='U tend [m s$^{-2}$]')
+   plt.savefig('yp_PSIvT_Utend.png')
+   plt.close()
 
 def f(x):
    return np.exp(4j * x / a / np.cos(lat0))
@@ -418,6 +430,13 @@ def eigp_pv(p, coef=np.pi / 1.4e5):
 def h_int(p):
    #return np.dot(abc, np.array([(p0**2 - p**2) / 2, p0 - p, np.log(p0 / p)]))
    return np.einsum('i,i...->...', abc, np.array([(p0**2 - p**2) / 2, p0 - p, np.log(p0 / p)]))
+
+def h_int_U(p):
+   return np.einsum('i,i...->...', abc, np.array([(p**2 - 7e4**2) / 2, p - 7e4, np.log(p / 7e4)]))
+
+#not needed
+def actual_h_int(p):
+   return np.dot(abc, np.array([p**3 / 3, p**2 / 2, p]))
 
 def plt_paxis_adj(ax=None):
    if ax is None:
