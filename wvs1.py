@@ -367,6 +367,33 @@ def main():
    plt.savefig('yp_PSIvT_Utend.png')
    plt.close()
 
+   PV_tend_U = -U_tend * diff3_g1sq(yg) / diff2_g1sq(yg)
+   #y-p plane PV tend from v'q', PV tend from U tend
+   csf = plt.contourf(yg[0, ...] / 1e3, pg[0, ...], PV_tend_U[0, ...], cmap='PuOr_r', levels=1e-9 * np.arange(-2, 2.1, 0.5))
+   cs = plt.contour(yg[0, ...] / 1e3, pg[0, ...], PVFc.mean(axis=0) * 1e9, levels=np.arange(-2, 2.1, 0.5), colors='black')
+   plt.clabel(cs, fmt='%.1f', inline=1, colors='black')
+   plt_paxis_adj()
+   plt.xlabel('y [km]')
+   plt.title('Contours: PV tend from U tend [s$^{-2}$]')
+   plt.colorbar(csf, label='v\'q\' convergence [10$^{-9}$ s$^{-2}$]')
+   plt.savefig('yp_PVFc_PVtendU.png')
+   plt.close()
+
+   PVT_consts = -2 * g / a / f0 / np.cos(lat0) * -Rd / f0 * (f0 * dens0 * g)**2 / N2 * Zamp * Tamp
+   pt1 = 2 * abc[0] + abc[1] / pg
+   pt2 = -h(pg) / pg**2
+   PV_tend_T = PVT_consts * EHFd(g1(yg)**2, yg) * (pt1 + pt2)
+   #y-p plane PV tend from v'q', PV tend from T tend
+   csf = plt.contourf(yg[0, ...] / 1e3, pg[0, ...], PV_tend_T[0, ...], cmap='PuOr_r', levels=1e-9 * np.arange(-2, 2.1, 0.5))
+   cs = plt.contour(yg[0, ...] / 1e3, pg[0, ...], PVFc.mean(axis=0) * 1e9, levels=np.arange(-2, 2.1, 0.5), colors='black')
+   plt.clabel(cs, fmt='%.1f', inline=1, colors='black')
+   plt_paxis_adj()
+   plt.xlabel('y [km]')
+   plt.title('Contours: PV tend from T tend [s$^{-2}$]')
+   plt.colorbar(csf, label='v\'q\' convergence [10$^{-9}$ s$^{-2}$]')
+   plt.savefig('yp_PVFc_PVtendT.png')
+   plt.close()
+
 def f(x):
    return np.exp(4j * x / a / np.cos(lat0))
 
