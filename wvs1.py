@@ -340,6 +340,20 @@ def main():
    plt.savefig('yp_vpqp_eig.png')
    plt.close()
 
+   PVFc1 = -vp.real * diffy(g1(yg), yg) / g1(yg) * qp.real
+   PVFc2 = -vp.real * diff3_g1(yg) / g1(yg) * psip
+   PVFc = PVFc1 + PVFc2
+   #y-p plane vT streamfunc, v'q' conv
+   csf = plt.contourf(yg[0, ...] / 1e3, pg[0, ...], PVFc.mean(axis=0), cmap='PuOr_r', norm=colors.TwoSlopeNorm(0))
+   cs = plt.contour(yg[0, ...] / 1e3, pg[0, ...], PSI_vT / 1e10, levels=psilevs / 1e10, colors='black')
+   plt.clabel(cs, fmt='%d', inline=1, colors='black')
+   plt_paxis_adj()
+   plt.xlabel('y [km]')
+   plt.title('Contours: Residual streamfunction $\\bar{\Psi}^*$, vT term [10$^{10}$ kg s$^{-1}$]')
+   plt.colorbar(csf, label='v\'q\' convergence [s$^{-2}$]')
+   plt.savefig('yp_PVFc_PSIvT.png')
+   plt.close()
+
 
 def f(x):
    return np.exp(4j * x / a / np.cos(lat0))
@@ -372,6 +386,13 @@ def diff2_g1(y):
 #2nd y derivative of squared Gaussian
 def diff2_g1sq(y):
    return -4 / 1e6**2 * (g1(y)**2 + y * 2 * g1(y) * diffy(g1(y), y))
+
+def diff3_g1(y):
+   fac = -2 / 1e6**2
+   t1 = diffy(g1(y), y)
+   t2a = diffy(g1(y), y)
+   t2b = y * diff2_g1(y)
+   return fac * (t1 + t2a + t2b)
 
 #3rd y derivative of squared Gaussian
 def diff3_g1sq(y):
