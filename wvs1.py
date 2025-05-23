@@ -11,6 +11,7 @@ cp = 1004
 kap = Rd / cp
 OM = 7.29e-5
 f0 = 2 * OM * np.sin(lat0)
+beta = 2 * OM / a * np.cos(lat0)
 N2 = 2e-4
 T0 = 280
 dens0 = p0 / Rd / T0
@@ -56,7 +57,7 @@ def main():
    print(vp.max())
 
    #x-p plane v, T, Z
-   plt.rcParams['figure.figsize'] = (12, 6)
+   plt.rcParams['figure.figsize'] = (12, 8)
    yslc = (slice(None), 50, slice(None))
    lonplt = xg[yslc] / a / np.cos(lat0) * 180 / np.pi 
    csf = plt.contourf(lonplt, pg[yslc], Tp[yslc], cmap='RdBu_r')
@@ -170,16 +171,24 @@ def main():
 
    th_vert = T0 * (1 + N2 / dens0 / g**2 * (p0 - pg))
    th_bg = th_vert * (1 + g2(yg))
-   th_y = th_vert * -1e4 * diff2_g1sq(yg) #= th_bg * d/dy(1e4 * (4 / 1e6**2 * yg) * g1(y)**2)
-   U_consts = Rd * T0 * N2 / f0 / p0**kap / dens0 / g**2 * -1e4 * diff2_g1sq(yg)
-   U_bg = U_consts * (T0 * (pg - p0) + (p0 / kap * (pg**kap - p0**kap) - (pg**(kap + 1) - p0**(kap + 1)) / (kap + 1)))
+   th_y = th_vert * 1e4 * diff2_g1sq(yg) #= th_bg * d/dy(1e4 * (4 / 1e6**2 * yg) * g1(y)**2)
+   U_consts = -Rd * T0 * N2 / f0 / p0**kap / dens0 / g**2 * -1e4 * diff2_g1sq(yg)
+   U_vert = (T0 * (pg - p0) + (p0 / kap * (pg**kap - p0**kap) - (pg**(kap + 1) - p0**(kap + 1)) / (kap + 1)))
+   U_bg = U_consts * U_vert
+   PV_bet = beta * yg
+   PV_bg_shear = -U_consts / diff2_g1sq(yg) * diff3_g1sq(yg) * U_vert
+   PV_bg_strat = U_consts / diff2_g1sq(yg) * EHFd(g1(yg)**2 , yg) * (f0 * dens0 * g)**2 / N2 * ((kap - 1) * p0 * pg**(kap - 2) - kap * pg**(kap - 1))
+   PV_bg = PV_bet + PV_bg_shear + PV_bg_strat
    print(U_bg.min(), U_bg.max())
+   fig, axes = plt.subplots(3, 1, gridspec_kw={'height_ratios': [2, 15, 1]})
    #y-p plane pot temp, its gradient, and U background
-   csf = plt.contourf(yg[0, ...], pg[0, ...], th_y[0, ...], cmap='bwr')
-   plt.contour(yg[0, ...], pg[0, ...], th_bg[0, ...], levels=thlevs, colors='red')
-   plt.contour(yg[0, ...], pg[0, ...], U_bg[0, ...], levels=Ulevs, colors='black')
-   plt_paxis_adj()
-   plt.colorbar(csf)
+   axes[0].plot(yg[0, :, 0], PV_bg[0, :, 0])
+   #csf = axes[1].contourf(yg[0, ...], pg[0, ...], th_y[0, ...], cmap='Blues_r')
+   csf = axes[1].contourf(yg[0, ...], pg[0, ...], PV_bg[0, ...], cmap='BrBG')
+   axes[1].contour(yg[0, ...], pg[0, ...], th_bg[0, ...], levels=thlevs, colors='red')
+   axes[1].contour(yg[0, ...], pg[0, ...], U_bg[0, ...], levels=Ulevs, colors='black')
+   plt_paxis_adj(ax=axes[1])
+   plt.colorbar(csf, cax=axes[2], orientation='horizontal')
    plt.savefig('yp_bg.png')
    plt.close()
 
@@ -362,7 +371,16 @@ def diff2_g1(y):
 
 #2nd y derivative of squared Gaussian
 def diff2_g1sq(y):
-   return 4 / 1e6**2 * (g1(y)**2 + y * 2 * g1(y) * diffy(g1(y), y))
+   return -4 / 1e6**2 * (g1(y)**2 + y * 2 * g1(y) * diffy(g1(y), y))
+
+#3rd y derivative of squared Gaussian
+def diff3_g1sq(y):
+   fac = -4 / 1e6**2
+   t1 = EHFd(g1(y)**2, y)
+   t2a = g1(y) * diffy(g1(y), y)
+   t2b = y * diffy(g1(y), y) * diffy(g1(y), y)
+   t2c = y * g1(y) * diff2_g1(y)
+   return fac * (t1 + 2 * (t2a + t2b + t2c))
 
 def h(p):
    return np.dot(abc, np.array([p**2, p, 1]))
@@ -380,11 +398,14 @@ def h_int(p):
    #return np.dot(abc, np.array([(p0**2 - p**2) / 2, p0 - p, np.log(p0 / p)]))
    return np.einsum('i,i...->...', abc, np.array([(p0**2 - p**2) / 2, p0 - p, np.log(p0 / p)]))
 
-def plt_paxis_adj():
-   plt.yscale('log')
-   plt.yticks(100 * plabs, labels=plabs)
-   plt.gca().invert_yaxis()
-   plt.ylabel('p [hPa]')
+def plt_paxis_adj(ax=None):
+   if ax is None:
+      ax = plt.gca()
+   ax.set_yscale('log')
+   ax.set_yticks(100 * plabs)
+   ax.set_yticklabels(plabs)
+   ax.invert_yaxis()
+   ax.set_ylabel('p [hPa]')
 
 if __name__ == '__main__':
    main()
