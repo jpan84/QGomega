@@ -396,7 +396,9 @@ def main():
    plt.savefig('yp_PVFc_PVtendT.png')
    plt.close()
 
-   PV_tend_tot = PV_tend_U + PV_tend_T
+   PV_tend_cor = -f0 * dens0 * g * PSI_vT * EHFd(g1(yg)**2, yg) / g1(yg)**2 * diffh(pg) / h(pg) / (2 * np.pi * a * np.cos(lat0)) #Coriolis
+   #print(PV_tend_cor.max())
+   PV_tend_tot = PV_tend_T + PV_tend_cor + PV_tend_U
    #y-p plane PV tend from v'q', PV tend from both U and T tend
    csf = plt.contourf(yg[0, ...] / 1e3, pg[0, ...], PV_tend_tot[0, ...], cmap='PuOr_r', levels=1e-9 * np.arange(-4, 4.1, 0.5))
    cs = plt.contour(yg[0, ...] / 1e3, pg[0, ...], PVFc.mean(axis=0) * 1e9, levels=np.arange(-4, 4.1, 0.5), colors='black')
@@ -458,6 +460,9 @@ def diff3_g1sq(y):
 
 def h(p):
    return np.dot(abc, np.array([p**2, p, 1]))
+
+def diffh(p):
+   return 2 * abc[0] * p + abc[1]
 
 def d2_hint(p):
    return -abc[0] + abc[2] / p**2
