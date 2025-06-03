@@ -340,9 +340,11 @@ def main():
    plt.savefig('yp_vpqp_eig.png')
    plt.close()
 
-   PVFc1 = -vp.real * diffy(g1(yg), yg) / g1(yg) * qp.real
-   PVFc2 = -vp.real * diff3_g1(yg) / g1(yg) * psip
-   PVFc = PVFc1 + PVFc2
+   #PVFc1 = -vp.real * diffy(g1(yg), yg) / g1(yg) * qp.real
+   #PVFc2 = -vp.real * diff3_g1(yg) / g1(yg) * psip
+   #PVFc = PVFc1 + PVFc2
+   PVFc_consts = 2 / a / np.cos(lat0) * (Rd * Tamp * dens0 * g)**2 / N2
+   PVFc = PVFc_consts * h_int(pg) * d2_hint(pg) * EHFd(g1(yg)**2, yg)
    #y-p plane vT streamfunc, v'q' conv
    csf = plt.contourf(yg[0, ...] / 1e3, pg[0, ...], PVFc.mean(axis=0), cmap='PuOr_r', norm=colors.TwoSlopeNorm(0))
    cs = plt.contour(yg[0, ...] / 1e3, pg[0, ...], PSI_vT / 1e10, levels=psilevs / 1e10, colors='black')
@@ -369,13 +371,13 @@ def main():
 
    PV_tend_U = -U_tend * diff3_g1sq(yg) / diff2_g1sq(yg)
    #y-p plane PV tend from v'q', PV tend from U tend
-   csf = plt.contourf(yg[0, ...] / 1e3, pg[0, ...], PV_tend_U[0, ...], cmap='PuOr_r', levels=1e-9 * np.arange(-2, 2.1, 0.5))
-   cs = plt.contour(yg[0, ...] / 1e3, pg[0, ...], PVFc.mean(axis=0) * 1e9, levels=np.arange(-2, 2.1, 0.5), colors='black')
+   csf = plt.contourf(yg[0, ...] / 1e3, pg[0, ...], PV_tend_U[0, ...], cmap='PuOr_r', levels=1e-9 * np.arange(-4, 4.1, 0.5))
+   cs = plt.contour(yg[0, ...] / 1e3, pg[0, ...], PVFc.mean(axis=0) * 1e9, levels=np.arange(-4, 4.1, 0.5), colors='black')
    plt.clabel(cs, fmt='%.1f', inline=1, colors='black')
    plt_paxis_adj()
    plt.xlabel('y [km]')
-   plt.title('Contours: PV tend from U tend [s$^{-2}$]')
-   plt.colorbar(csf, label='v\'q\' convergence [10$^{-9}$ s$^{-2}$]')
+   plt.title('Contours: v\'q\' convergence [10$^{-9}$ s$^{-2}$]')
+   plt.colorbar(csf, label='PV tend from U tend [s$^{-2}$]')
    plt.savefig('yp_PVFc_PVtendU.png')
    plt.close()
 
@@ -384,14 +386,26 @@ def main():
    pt2 = -h(pg) / pg**2
    PV_tend_T = PVT_consts * EHFd(g1(yg)**2, yg) * (pt1 + pt2)
    #y-p plane PV tend from v'q', PV tend from T tend
-   csf = plt.contourf(yg[0, ...] / 1e3, pg[0, ...], PV_tend_T[0, ...], cmap='PuOr_r', levels=1e-9 * np.arange(-2, 2.1, 0.5))
-   cs = plt.contour(yg[0, ...] / 1e3, pg[0, ...], PVFc.mean(axis=0) * 1e9, levels=np.arange(-2, 2.1, 0.5), colors='black')
+   csf = plt.contourf(yg[0, ...] / 1e3, pg[0, ...], PV_tend_T[0, ...], cmap='PuOr_r', levels=1e-9 * np.arange(-4, 4.1, 0.5))
+   cs = plt.contour(yg[0, ...] / 1e3, pg[0, ...], PVFc.mean(axis=0) * 1e9, levels=np.arange(-4, 4.1, 0.5), colors='black')
    plt.clabel(cs, fmt='%.1f', inline=1, colors='black')
    plt_paxis_adj()
    plt.xlabel('y [km]')
-   plt.title('Contours: PV tend from T tend [s$^{-2}$]')
-   plt.colorbar(csf, label='v\'q\' convergence [10$^{-9}$ s$^{-2}$]')
+   plt.title('Contours: v\'q\' convergence [10$^{-9}$ s$^{-2}$]')
+   plt.colorbar(csf, label='PV tend from T tend [s$^{-2}$]')
    plt.savefig('yp_PVFc_PVtendT.png')
+   plt.close()
+
+   PV_tend_tot = PV_tend_U + PV_tend_T
+   #y-p plane PV tend from v'q', PV tend from both U and T tend
+   csf = plt.contourf(yg[0, ...] / 1e3, pg[0, ...], PV_tend_tot[0, ...], cmap='PuOr_r', levels=1e-9 * np.arange(-4, 4.1, 0.5))
+   cs = plt.contour(yg[0, ...] / 1e3, pg[0, ...], PVFc.mean(axis=0) * 1e9, levels=np.arange(-4, 4.1, 0.5), colors='black')
+   plt.clabel(cs, fmt='%.1f', inline=1, colors='black')
+   plt_paxis_adj()
+   plt.xlabel('y [km]')
+   plt.title('Contours: v\'q\' convergence [10$^{-9}$ s$^{-2}$]')
+   plt.colorbar(csf, label='PV tend from T and U tend [s$^{-2}$]')
+   plt.savefig('yp_PVFc_PVtendtot.png')
    plt.close()
 
 def f(x):
@@ -458,8 +472,8 @@ def h_int(p):
    #return np.dot(abc, np.array([(p0**2 - p**2) / 2, p0 - p, np.log(p0 / p)]))
    return np.einsum('i,i...->...', abc, np.array([(p0**2 - p**2) / 2, p0 - p, np.log(p0 / p)]))
 
-def h_int_U(p):
-   return np.einsum('i,i...->...', abc, np.array([(p**2 - 7e4**2) / 2, p - 7e4, np.log(p / 7e4)]))
+def h_int_U(p, p_nochg=5.4e4):
+   return np.einsum('i,i...->...', abc, np.array([(p**2 - p_nochg**2) / 2, p - p_nochg, np.log(p / p_nochg)]))
 
 #not needed
 def actual_h_int(p):
