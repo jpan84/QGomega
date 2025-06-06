@@ -11,7 +11,9 @@ class Bous_plane_consts:
       self.lat0, self.f0 = lat0, 2 * self.OM * np.sin(lat0)
       self.beta = 0. if fplane else 2 * self.OM / self.a * np.cos(lat0)
       self.dens0 = p0 / self.Rd / T0
+      self.latcirc = 2 * np.pi * self.a * np.cos(lat0)
 
+#Container class for separable fields with differentiation and product rule
 class Anafld:
    def __init__(self, name, consts, xfunc, yfunc, pfunc):
       self.name = name
@@ -25,14 +27,22 @@ class Anafld:
    def deriv(self, dim):
       newfuncs = self.funcs.copy()
       newfuncs[dim] = self.funcs[dim].deriv
-      return Anafld(self.name + '_deriv_' + dim, self.consts,\
+      return Anafld(self.name + '_deriv' + dim, self.consts,\
              newfuncs['x'], newfuncs['y'], newfuncs['p'])
 
+   def z_deriv_bous(self, dens0=1e5 / 287 / 280):
+      return -dens0 * 9.81 * self.deriv('p')
+
+   def zonal_mean_sinsq(self):
+      newxfunc = Anafunc(lambda x: 0.5, Anafunc(lambda x: 0))
+      return Anafld(self.name + '_zm', self.consts, newxfunc, self.funcs['y'], self.funcs['p'])
+
+   #incorrect formulation if more than 1 of the separable funcs is complex
    @staticmethod
    def product(afld1, afld2):
       newname = 'prod_[' + afld1.name + ']_[' + afld2.name + ']'
       newconsts = afld1.consts * afld2.consts
-      newfuncs = {k: Anafunc.product_real(afld1.funcs[k], afld2.funcs[k]) for k in afld1.funcs}
+      newfuncs = {k: Anafunc.product(afld1.funcs[k], afld2.funcs[k]) for k in afld1.funcs}
       return Anafld(newname, newconsts, newfuncs['x'], newfuncs['y'], newfuncs['p'])
 
    def __rmul__(self, sclr):
@@ -63,6 +73,15 @@ class Anafunc:
       if not af1.deriv is None and not af2.deriv is None:
          sumderiv = Anafunc(lambda coords: af1.eval_deriv(coords) + af2.eval_deriv(coords))
       return Anafunc(sumfunc, sumderiv)
+
+   @staticmethod
+   def product(af1, af2):
+      prodfunc = lambda coords: af1.eval(coords) * af2.eval(coords)
+      prodderiv = None
+      if not af1.deriv is None and not af2.deriv is None:
+         prodderiv = Anafunc(lambda coords: af1.eval_deriv(coords) * af2.eval(coords)\
+                          + af1.eval(coords) * af2.eval_deriv(coords))
+      return Anafunc(prodfunc, prodderiv)
 
    @staticmethod
    def product_real(af1, af2):
@@ -162,3 +181,8 @@ class Eddyflds:
       self.Zp = Anafld('Zp', 1, fx, gy, Anafunc(lambda p: Zamp + c.Rd * Tamp / c.g * 1j * bc.eval(p)))
 
       self.vp, self.up = self.Zp.deriv('x') * (c.g / c.f0), self.Zp.deriv('y') * (-c.g / c.f0)
+
+      #Incorrect b/c Re(ab) != Re(a)Re(b)
+      self.EHF = Anafld.product(self.vp, self.Tp)
+      self.EHF.name = 'EHF'
+      self.PSI_vT = c.g / c.T0 / c.N2 * c.latcirc * self.EHF.zonal_mean_sinsq()

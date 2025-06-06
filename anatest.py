@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.colors as colors
 from ana_cls import my_yfuncs, Bous_plane_consts, ZM_bg, Eddyflds
 
 yg = np.arange(-5e5, 5e5, 1e4)
@@ -61,4 +62,26 @@ plt.xlabel('lon')
 plt.title('Contours: Z anomaly (interval 60 m)\nShading: T anomaly [K]')
 plt_paxis_adj()
 plt.colorbar(csf)
+plt.close()#plt.show()
+
+psilevs = 1e10 * 2.**np.arange(0, 10)
+PSI_vT = ef.PSI_vT.eval(xg, yg, pg)
+print(PSI_vT.max())
+#y-p plane EHF heating rate, streamfunc response
+cs = plt.contour(yg[0, ...] / 1e3, pg[0, ...], PSI_vT[0, ...] / 1e10, levels=psilevs / 1e10, colors='black')
+plt.clabel(cs, fmt='%d', inline=1, colors='black')
+plt_paxis_adj()
+plt.xlabel('y [km]')
+plt.title('Contours: Residual streamfunction $\\bar{\Psi}^*$, vT term [10$^{10}$ kg s$^{-1}$]')
+plt.close()#plt.show()
+
+vpTp = ef.EHF.eval(xg, yg, pg)
+#vpTp = ef.vp.eval(xg, yg, pg).real * ef.Tp.eval(xg, yg, pg).real
+plt.contourf(xg[yslc], pg[yslc], vpTp[yslc], cmap='bwr', norm=colors.TwoSlopeNorm(0))
+plt.xlabel('x [m]')
+plt_paxis_adj()
+plt.colorbar()
 plt.show()
+#plt.savefig('xp_vT.png')
+#plt.close()
+
