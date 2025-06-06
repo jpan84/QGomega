@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from ana_cls import my_yfuncs, Bous_plane_consts, ZM_bg
+from ana_cls import my_yfuncs, Bous_plane_consts, ZM_bg, Eddyflds
 
 yg = np.arange(-5e5, 5e5, 1e4)
 a = my_yfuncs()
@@ -38,4 +38,27 @@ print(Uplt.min(), Uplt.max())
 plt.contour(yg[0, ...], pg[0, ...], thplt[0, ...], levels=thlevs, colors='red')
 plt.contour(yg[0, ...], pg[0, ...], Uplt[0, ...], levels=Ulevs, colors='black')
 plt_paxis_adj()
+plt.close()#plt.show()
+
+ef = Eddyflds()
+Zp = ef.Zt.eval(xg, yg, pg) + ef.Zc.eval(xg, yg, pg)
+Zp = ef.Zp.eval(xg, yg, pg)
+Tp = ef.Tp.eval(xg, yg, pg)
+vp = ef.vp.eval(xg, yg, pg)
+#x-p plane v, T, Z
+plt.rcParams['figure.figsize'] = (12, 8)
+vlevs = np.arange(5, 30, 5)
+vlevs = np.concatenate((-vlevs[::-1], vlevs))
+Zlevs = np.arange(60, 360, 60)
+Zlevs = np.concatenate((-Zlevs[::-1], Zlevs))
+yslc = (slice(None), 50, slice(None))
+lonplt = xg[yslc] / c.a / np.cos(c.lat0) * 180 / np.pi 
+csf = plt.contourf(lonplt, pg[yslc], Tp[yslc], cmap='RdBu_r')
+plt.contour(lonplt, pg[yslc], Zp[yslc], levels=Zlevs, colors='black')
+plt.contour(lonplt, pg[yslc], vp[yslc], levels=vlevs, colors='green')
+plt.xlim(0, 90)
+plt.xlabel('lon')
+plt.title('Contours: Z anomaly (interval 60 m)\nShading: T anomaly [K]')
+plt_paxis_adj()
+plt.colorbar(csf)
 plt.show()

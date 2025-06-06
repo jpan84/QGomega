@@ -13,20 +13,35 @@ class Bous_plane_consts:
       self.dens0 = p0 / self.Rd / T0
 
 class Anafld:
-   def __init__(self, name, consts, lonfunc, yfunc, pfunc):
+   def __init__(self, name, consts, xfunc, yfunc, pfunc):
       self.name = name
       self.consts = consts
-      self.funcs = dict(lon=lonfunc, y=yfunc, p=pfunc)
+      self.funcs = dict(x=xfunc, y=yfunc, p=pfunc)
 
    def eval(self, xco, yco, pco):
-      return self.consts * self.funcs['lon'].eval(xco) *\
+      return self.consts * self.funcs['x'].eval(xco) *\
              self.funcs['y'].eval(yco) * self.funcs['p'].eval(pco)
 
-   def difffld(self, dim):
+   def deriv(self, dim):
       newfuncs = self.funcs.copy()
       newfuncs[dim] = self.funcs[dim].deriv
       return Anafld(self.name + '_deriv_' + dim, self.consts,\
-             newfuncs['lon'], newfuncs['y'], newfuncs['p'])
+             newfuncs['x'], newfuncs['y'], newfuncs['p'])
+
+   @staticmethod
+   def product(afld1, afld2):
+      newname = 'prod_[' + afld1.name + ']_[' + afld2.name + ']'
+      newconsts = afld1.consts * afld2.consts
+      newfuncs = {k: Anafunc.product_real(afld1.funcs[k], afld2.funcs[k]) for k in afld1.funcs}
+      return Anafld(newname, newconsts, newfuncs['x'], newfuncs['y'], newfuncs['p'])
+
+   def __rmul__(self, sclr):
+      newconsts = sclr * self.consts
+      newname = f'({sclr} * {self.name})'
+      return Anafld(newname, newconsts, self.funcs['x'], self.funcs['y'], self.funcs['p'])
+ 
+   def __mul__(self, sclr):
+      return self.__rmul__(sclr)
 
 class Anafunc:
    def __init__(self, func, deriv=None):
@@ -40,6 +55,23 @@ class Anafunc:
       if self.deriv is None:
          raise AttributeError("No derivative function defined for this Anafunc instance.")
       return self.deriv.eval(coords)
+
+   @staticmethod
+   def sum(af1, af2):
+      sumfunc = lambda coords: af1.eval(coords) + af2.eval(coords)
+      sumderiv = None
+      if not af1.deriv is None and not af2.deriv is None:
+         sumderiv = Anafunc(lambda coords: af1.eval_deriv(coords) + af2.eval_deriv(coords))
+      return Anafunc(sumfunc, sumderiv)
+
+   @staticmethod
+   def product_real(af1, af2):
+      prodfunc = lambda coords: af1.eval(coords).real * af2.eval(coords).real
+      prodderiv = None
+      if not af1.deriv is None and not af2.deriv is None:
+         prodderiv = Anafunc(lambda coords: af1.eval_deriv(coords).real * af2.eval(coords).real\
+                          + af1.eval(coords).real * af2.eval_deriv(coords).real)
+      return Anafunc(prodfunc, prodderiv)
 
 ysc = 1e6
 g1 = lambda y: np.exp(-(y / ysc)**2)
@@ -83,7 +115,7 @@ class my_yfuncs:
       t2c = y * g1(y) * g1_dd(y)
       return fac * (t1 + 2 * (t2a + t2b + t2c))
 
-xzm = Anafunc(lambda lon: 1, Anafunc(lambda lon: 0))
+xzm = Anafunc(lambda x: 1, Anafunc(lambda x: 0))
 
 #zonal-mean background state
 class ZM_bg:
@@ -96,8 +128,9 @@ class ZM_bg:
 
       yf = my_yfuncs()
       self.th_bg = Anafld('th_bg', c.T0, xzm, yf.g2, pf1)
-      self.th_y = self.th_bg.difffld('y')
+      self.th_y = self.th_bg.deriv('y')
 
+      #TODO: debug U
       U_consts = -c.Rd * c.T0 * c.N2 / c.f0 / c.p0**c.kap / c.dens0 / c.g**2
       pf2d = Anafunc(lambda p: c.p0 * p**(c.kap - 1) - p**c.kap)
       Ut1 = lambda p: c.p0 / c.kap * (p**c.kap - c.p0**c.kap)
@@ -105,9 +138,27 @@ class ZM_bg:
       pf2 = Anafunc(lambda p: Ut1(p) + Ut2(p), pf2d)
       Upfd = Anafunc(lambda p: c.T0 + pf2d.eval(p))
       Upf = Anafunc(lambda p: c.T0 * (p - c.p0) + Ut1(p) + Ut2(p), Upfd)
-      thyy = self.th_y.difffld('y')
+      thyy = self.th_y.deriv('y')
       print(thyy.funcs['y'])
       self.U_bg = Anafld('U_bg', U_consts, xzm, thyy.funcs['y'], Upf)
 
-#eddy fields and fluxes
-#class Eddyflds:
+c = Bous_plane_consts()
+f1 = lambda x: np.exp(4j * x / c.a / np.cos(c.lat0))
+fx_d = Anafunc(lambda x: 4j / c.a / np.cos(c.lat0) * f1(x), Anafunc(lambda x: -4**2 / c.a**2 / np.cos(c.lat0)**2 * f1(x)))
+fx = Anafunc(f1, fx_d)
+
+abc = np.array([-1, 1.4e5, -2.875e9]) / 2.3e9
+hp = Anafunc(lambda p: np.dot(abc, np.array([p**2, p, 1])), Anafunc(lambda p: np.dot(abc, np.array([2 * p, 1, 0]))))
+bt = xzm
+bc = Anafunc(lambda p: np.einsum('i,i...->...', abc, np.array([(c.p0**2 - p**2) / 2, c.p0 - p, np.log(c.p0 / p)])))
+
+#eddy fields and fluxes for geostrophic and hydrostatic closed-form eddies
+class Eddyflds:
+   def __init__(self, Tamp=10, Zamp=200, fx=fx, gy=my_yfuncs().g1, hp=hp, bt=bt, bc=bc):
+      self.Tamp, self.Zamp = Tamp, Zamp
+      self.Tp = Anafld('Tp', Tamp * 1j, fx, gy, hp)
+      self.Zt = Anafld('Z_barotropic', Zamp, fx, gy, bt)
+      self.Zc = Anafld('Z_baroclinic', c.Rd * Tamp / c.g * 1j, fx, gy, bc)
+      self.Zp = Anafld('Zp', 1, fx, gy, Anafunc(lambda p: Zamp + c.Rd * Tamp / c.g * 1j * bc.eval(p)))
+
+      self.vp, self.up = self.Zp.deriv('x') * (c.g / c.f0), self.Zp.deriv('y') * (-c.g / c.f0)
