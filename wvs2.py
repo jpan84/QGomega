@@ -42,6 +42,7 @@ zwn = 4 #zonal wavenumber
 ysc = 1e6 #y-scale
 #print(abc)
 
+plt.rc('font', size=16)
 
 Zlevs = np.arange(60, 360, 60)
 Zlevs = np.concatenate((-Zlevs[::-1], Zlevs))
@@ -59,48 +60,36 @@ psilevs = 1e10 * 2.**np.arange(0, 10)
 thlevs = np.arange(250, 400, 5)
 
 def main():
-   #print(lons, yy, pp)
    xg, yg, pg = np.meshgrid(lons * a * np.cos(lat0), yy, pp, indexing='ij')
-   #print(pg[..., -1])
 
-   #print(f(xg))
-   #print(h(pg[1,1,:]))
-
+   #eddy state fields
    Tp = Tamp * 1j * f(xg) * g1(yg) * h(pg)
-   Z0 = Zamp * f(xg) * g1(yg)
+   Z0 = Zamp * f(xg) * g1(yg) #barotropic comp
    Zp = Z0 + f(xg) * g1(yg) * Rd * Tamp / g * 1j * h_int(pg)
-   #up = -g / f0 * diffy(Zp, yg)
+   up = -g / f0 * (Zp * g1_d(yg) / g1(yg))
    vp = g / f0 * diffx(Zp)
-   print(vp.max())
+   #print(vp.max())
+
+   #eddy flux fields
+   vpTp = vp.real * Tp.real
+   EHFc = vpTp * g1sq_d(yg) / g1sq(yg)
+   upvp = up.real * vp.real
+   EMFc = upvp * (g1_dd(yg) * g1(yg) + g1_d(yg)**2) / (g1_d(yg) * g1(yg))
 
    #x-p plane v, T, Z
    plt.rcParams['figure.figsize'] = (12, 8)
    yslc = (slice(None), 50, slice(None))
-   lonplt = xg[yslc] / a / np.cos(lat0) * 180 / np.pi 
-   csf = plt.contourf(lonplt, pg[yslc], Tp[yslc], cmap='RdBu_r')
-   plt.contour(lonplt, pg[yslc], Zp[yslc], levels=Zlevs, colors='black')
-   #plt.contour(lonplt, pg[yslc], vp[yslc], levels=vlevs, colors='green')
-   plt.xlim(0, 90)
-   plt.xlabel('lon')
-   plt.title('Contours: Z anomaly (interval 60 m)\nShading: T anomaly [K]')
-   plt_paxis_adj()
-   plt.colorbar(csf)
-   #plt.show()
-   plt.savefig('xp_v_T_Z.png')
-   plt.close()
+   plt_xp(xg, pg, yslc, Zp, Tp, 'Contours: Z\' (interval 60 m)\nShading: T\' [K]',\
+             'xp_T_Z.png', dict(colors='black', levels=Zlevs), dict(cmap='RdBu_r'))
 
    #x-y plane Z, EHF
    #print(pg[..., 18])
    pslc = (slice(None), slice(None), 18)
-   lonplt = xg[pslc] / a / np.cos(lat0) * 180 / np.pi
-   csf = plt.contourf(lonplt, yg[pslc] / 1e3, vp[pslc], cmap='bwr', norm=colors.TwoSlopeNorm(0))
-   plt.contour(lonplt, yg[pslc] / 1e3, Zp[pslc], levels=Zlevs, colors='black')
-   plt.title('%d hPa     Contours: Z anomaly (interval 60 m)\nShading: v\' [m s$^{-1}$]' % (pg[pslc].min() / 100))
-   plt.xlabel('lon')
-   plt.ylabel('y [km]')
-   plt.colorbar(csf)
-   plt.savefig('xy_Z_vT.png')
-   plt.close()
+   plt_xy(xg, yg, pslc, Zp, vp, '%d hPa     Contours: Z\' (interval 60 m)\nShading: v\' [m s$^{-1}$]' % (pg[pslc].min() / 100),\
+             'xy_Z_v.png', dict(colors='black', levels=Zlevs), dict(cmap='bwr'))
+
+   plt_xy(xg, yg, pslc, Zp, vpTp, '%d hPa     Contours: Z\' (interval 60 m)\nShading: v\'T\' [K m s$^{-1}$]' % (pg[pslc].min() / 100),\
+             'xy_Z_EHF.png', dict(colors='black', levels=Zlevs), dict(cmap='bwr', norm=colors.TwoSlopeNorm(0)))
 
 def f(x):
    return np.exp(zwn * 1j * x / a / np.cos(lat0))
@@ -109,14 +98,58 @@ def diffx(fn):
    return zwn * 1j / a / np.cos(lat0) * fn
 
 def yargs(y):
-   return -zwn / 10 * 1j * y / a / np.cos(lat0) - (y / ysc)**2
+   return -zwn * 1j * y / a / np.cos(lat0) - (y / ysc)**2
+
+def yargs_d(y):
+   return -zwn * 1j / a / np.cos(lat0) - 2 * y / ysc**2
+
+def yargs_dd(y):
+   return -2 / ysc**2
 
 def g1(y):
    return np.exp(yargs(y))
 
+def g1sq(y):
+   return g1(y)**2
+
+def g1_d(y):
+   return yargs_d(y) * g1(y)
+
+def g1sq_d(y):
+   return 2 * g1(y) * g1_d(y)
+
+def g1_dd(y):
+   return yargs_dd(y) * g1(y) + yargs_d(y) * g1_d(y)
+
 
 #######################################
 
+def plt_xy(xg, yg, pslc, contfld, conffld, title, outname, contkw, confkw):
+   plt.rcParams['figure.figsize'] = (14, 2)
+   lonplt = xg[pslc] / a / np.cos(lat0) * 180 / np.pi
+   csf = plt.contourf(lonplt, yg[pslc] / 1e3, conffld[pslc], **confkw)
+   plt.contour(lonplt, yg[pslc] / 1e3, contfld[pslc], **contkw)
+   plt.title(title)
+   plt.xlim(0, 90)
+   plt.xlabel('lon')
+   plt.ylabel('y [km]')
+   plt.colorbar(csf)
+   plt.savefig(outname, bbox_inches='tight')
+   plt.close()
+
+def plt_xp(xg, pg, yslc, contfld, conffld, title, outname, contkw, confkw):
+   plt.rcParams['figure.figsize'] = (12, 8)
+   lonplt = xg[yslc] / a / np.cos(lat0) * 180 / np.pi 
+   csf = plt.contourf(lonplt, pg[yslc], conffld[yslc], **confkw)
+   plt.contour(lonplt, pg[yslc], contfld[yslc], **contkw)
+   plt.xlim(0, 90)
+   plt.xlabel('lon')
+   plt.title(title)
+   plt_paxis_adj()
+   plt.colorbar(csf)
+   #plt.show()
+   plt.savefig(outname, bbox_inches='tight')
+   plt.close()
 
 #######################################
 
