@@ -19,6 +19,7 @@ kap = Rd / cp
 lat0 = np.deg2rad(45)
 f0 = 2 * OM * np.sin(lat0)
 beta = 2 * OM / a * np.cos(lat0)
+latcirc = 2 * np.pi * a * np.cos(lat0)
 
 #Boussinesq consts
 p0 = 1e5
@@ -55,8 +56,8 @@ Tlevs = np.arange(2, 11, 2)
 Tlevs = np.concatenate((-Tlevs[::-1], Tlevs))
 adiablevs = np.arange(1, 5) # K/day
 adiablevs = np.concatenate((-adiablevs[::-1], adiablevs))
-plabs = np.array([300, 400, 500, 600, 700, 850, 1000])
-psilevs = 1e10 * 2.**np.arange(0, 10)
+plabs = np.arange(300, 1001, 100) #np.array([300, 400, 500, 600, 700, 850, 1000])
+psilevs = 2.**np.arange(0, 10) #1e10 kg s-1
 thlevs = np.arange(250, 400, 5)
 
 def main():
@@ -72,24 +73,59 @@ def main():
 
    #eddy flux fields
    vpTp = vp.real * Tp.real
-   EHFc = vpTp * g1sq_d(yg) / g1sq(yg)
+   EHFc = -vpTp * g1sq_d(yg) / g1sq(yg)
    upvp = up.real * vp.real
-   EMFc = upvp * (g1_dd(yg) * g1(yg) + g1_d(yg)**2) / (g1_d(yg) * g1(yg))
+   EMFc = -upvp * (g1_dd(yg) * g1(yg) + g1_d(yg)**2) / (g1_d(yg) * g1(yg))
+   PSI_vT = latcirc * g / T0 / N2 * vpTp.mean(axis=0)
 
-   #x-p plane v, T, Z
+   #background (zonal mean) fields
+   th_vert = T0 * (1 + N2 / dens0 / g**2 * (p0 - pg))
+   th_bg = th_vert * (1 + 1e4 * g1sq_d(yg))
+   th_y = th_vert * 1e4 * g1sq_dd(yg)
+   U_consts = -Rd * T0 * N2 / f0 / p0**kap / dens0 / g**2
+   U_bg = U_consts * th_y * (T0 * (pg - p0) + kap_poly_int(pg))
+   print(U_bg.min(), U_bg.max())
+
+   #synoptic fields
+   #Tadv_bg =
+
+   #x-p plane T, Z
    plt.rcParams['figure.figsize'] = (12, 8)
    yslc = (slice(None), 50, slice(None))
    plt_xp(xg, pg, yslc, Zp, Tp, 'Contours: Z\' (interval 60 m)\nShading: T\' [K]',\
              'xp_T_Z.png', dict(colors='black', levels=Zlevs), dict(cmap='RdBu_r'))
 
-   #x-y plane Z, EHF
+   #x-y plane Z, v
    #print(pg[..., 18])
    pslc = (slice(None), slice(None), 18)
    plt_xy(xg, yg, pslc, Zp, vp, '%d hPa     Contours: Z\' (interval 60 m)\nShading: v\' [m s$^{-1}$]' % (pg[pslc].min() / 100),\
              'xy_Z_v.png', dict(colors='black', levels=Zlevs), dict(cmap='bwr'))
 
+   #x-y plane Z, EHF
    plt_xy(xg, yg, pslc, Zp, vpTp, '%d hPa     Contours: Z\' (interval 60 m)\nShading: v\'T\' [K m s$^{-1}$]' % (pg[pslc].min() / 100),\
              'xy_Z_EHF.png', dict(colors='black', levels=Zlevs), dict(cmap='bwr', norm=colors.TwoSlopeNorm(0)))
+
+   #x-y plane Z, EMF
+   pslc = (slice(None), slice(None), 2)
+   plt_xy(xg, yg, pslc, Zp, upvp, '%d hPa     Contours: Z\' (interval 60 m)\nShading: u\'v\' [m$^2$ s$^{-2}$]' % (pg[pslc].min() / 100),\
+             'xy_Z_EMF.png', dict(colors='black', levels=Zlevs), dict(cmap='bwr', norm=colors.TwoSlopeNorm(0)))
+
+   #y-p plane, PSIvT, EHFc
+   plt_yp_zm(yg[0, ...], pg[0, ...], PSI_vT / 1e10, EHFc.mean(axis=0) * 86400,\
+            'Contours: Residual streamfunction $\\bar{\Psi}^*$, vT term [10$^{10}$ kg s$^{-1}$]\nShading: EHF warming tendency [K day$^{-1}$]',\
+            'yp_PSIvT_EHFc.png', dict(colors='black', levels=psilevs), dict(cmap='bwr'), clabelkw=dict(fmt='%d', inline=1, colors='black'))
+
+   #y-p plane, EMF, EMFc
+   plt_yp_zm(yg[0, ...], pg[0, ...], upvp.mean(axis=0), EMFc.mean(axis=0) * 86400,\
+            'Contours: u\'v\' [m$^2$ s$^{-2}$]\nShading: EMF U tendency [m s$^{-1}$ day$^{-1}$]',\
+            'yp_EMF_EMFc.png', dict(colors='black', levels=np.arange(50, 400, 50)), dict(cmap='bwr'), clabelkw=dict(fmt='%d', inline=1, colors='black'))
+
+   plt.rcParams['figure.figsize'] = (12, 8)
+   plt.contour(yg[0, ...] / 1e3, pg[0, ...], th_bg[0, ...], levels=thlevs, colors='red')
+   plt.contour(yg[0, ...] / 1e3, pg[0, ...], U_bg[0, ...], levels=Ulevs, colors='black')
+   plt_paxis_adj()
+   plt.savefig('yp_bg.png')
+   plt.close()
 
 def f(x):
    return np.exp(zwn * 1j * x / a / np.cos(lat0))
@@ -106,6 +142,9 @@ def yargs_d(y):
 def yargs_dd(y):
    return -2 / ysc**2
 
+def yargs_ddd(y):
+   return 0
+
 def g1(y):
    return np.exp(yargs(y))
 
@@ -121,6 +160,26 @@ def g1sq_d(y):
 def g1_dd(y):
    return yargs_dd(y) * g1(y) + yargs_d(y) * g1_d(y)
 
+def g1_ddd(y):
+   return yargs_ddd(y) * g1(y) + yargs_dd(y) * g1_d(y)\
+          + yargs_dd(y) * g1_d(y) + yargs_d(y) * g1_dd(y)
+
+def g1sq_dd(y):
+   return 2 * (g1_d(y) * g1_d(y) + g1(y) * g1_dd(y))
+
+def g1sq_ddd(y):
+   return 2 * (2 * g1_d(y) * g1_dd(y)\
+          + g1_d(y) * g1_dd(y) + g1(y) * g1_ddd(y))
+
+def h(p):
+   return np.dot(abc, np.array([p**2, p, 1]))
+
+def h_int(p):
+   #return np.dot(abc, np.array([(p0**2 - p**2) / 2, p0 - p, np.log(p0 / p)]))
+   return np.einsum('i,i...->...', abc, np.array([(p0**2 - p**2) / 2, p0 - p, np.log(p0 / p)]))
+
+def kap_poly_int(p):
+   return p0 / kap * (p**kap - p0**kap) - (p**(kap + 1) - p0**(kap + 1)) / (kap + 1)
 
 #######################################
 
@@ -151,8 +210,32 @@ def plt_xp(xg, pg, yslc, contfld, conffld, title, outname, contkw, confkw):
    plt.savefig(outname, bbox_inches='tight')
    plt.close()
 
+def plt_yp_zm(yg, pg, contfld, conffld, title, outname, contkw, confkw, clabelkw=None):
+   plt.rcParams['figure.figsize'] = (12, 8)
+   csf = plt.contourf(yg / 1e3, pg, conffld, **confkw)
+   cs = plt.contour(yg / 1e3, pg, contfld, **contkw)
+   if clabelkw:
+      plt.clabel(cs, **clabelkw)
+   plt.xlabel('y [km]')
+   plt.title(title)
+   plt_paxis_adj()
+   plt.colorbar(csf)
+   #plt.show()
+   plt.savefig(outname, bbox_inches='tight')
+   plt.close()
+
+def plt_paxis_adj(ax=None):
+   if ax is None:
+      ax = plt.gca()
+   ax.set_yscale('log')
+   ax.set_yticks(100 * plabs)
+   ax.set_yticklabels(plabs)
+   ax.invert_yaxis()
+   ax.set_ylabel('p [hPa]')
+
 #######################################
 
+'''
 def g2(y):
    return 1e4 * EHFd(g1(y)**2, y)
 
@@ -207,9 +290,7 @@ def eigp(p, coef=np.pi/7.5e4):
 def eigp_pv(p, coef=np.pi / 1.4e5):
    return np.sin(coef * (p - 4e4)), coef
 
-def h_int(p):
-   #return np.dot(abc, np.array([(p0**2 - p**2) / 2, p0 - p, np.log(p0 / p)]))
-   return np.einsum('i,i...->...', abc, np.array([(p0**2 - p**2) / 2, p0 - p, np.log(p0 / p)]))
+
 
 def h_int_U(p, p_nochg=8.e4):
    return np.einsum('i,i...->...', abc, np.array([(p**2 - p_nochg**2) / 2, p - p_nochg, np.log(p / p_nochg)]))
@@ -217,15 +298,8 @@ def h_int_U(p, p_nochg=8.e4):
 #not needed
 def actual_h_int(p):
    return np.dot(abc, np.array([p**3 / 3, p**2 / 2, p]))
+'''
 
-def plt_paxis_adj(ax=None):
-   if ax is None:
-      ax = plt.gca()
-   ax.set_yscale('log')
-   ax.set_yticks(100 * plabs)
-   ax.set_yticklabels(plabs)
-   ax.invert_yaxis()
-   ax.set_ylabel('p [hPa]')
 
 if __name__ == '__main__':
    main()
