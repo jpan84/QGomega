@@ -45,17 +45,15 @@ ysc = 1e6 #y-scale
 
 plt.rc('font', size=16)
 
-Zlevs = np.arange(60, 360, 60)
-Zlevs = np.concatenate((-Zlevs[::-1], Zlevs))
-Ulevs = np.arange(10, 100, 10)
-vlevs = np.arange(5, 30, 5)
-vlevs = np.concatenate((-vlevs[::-1], vlevs))
-wlevs = 1e-3 * np.arange(1, 10)
-wlevs = np.concatenate((-wlevs[::-1], wlevs))
-Tlevs = np.arange(2, 11, 2)
-Tlevs = np.concatenate((-Tlevs[::-1], Tlevs))
-adiablevs = np.arange(1, 5) # K/day
-adiablevs = np.concatenate((-adiablevs[::-1], adiablevs))
+def symclevs(poslevs):
+   return np.concatenate((-poslevs[::-1], poslevs))
+
+Zlevs = symclevs(np.arange(60, 360, 60))
+Ulevs = symclevs(np.arange(10, 100, 10))
+vlevs = symclevs(np.arange(5, 30, 5))
+wlevs = symclevs(1e-3 * np.arange(1, 10))
+Tlevs = symclevs(np.arange(2, 11, 2))
+adiablevs = symclevs(np.arange(1, 5)) # K/day
 plabs = np.arange(300, 1001, 100) #np.array([300, 400, 500, 600, 700, 850, 1000])
 psilevs = 2.**np.arange(0, 10) #1e10 kg s-1
 thlevs = np.arange(250, 400, 5)
@@ -76,7 +74,9 @@ def main():
    EHFc = -vpTp * g1sq_d(yg) / g1sq(yg)
    upvp = up.real * vp.real
    EMFc = -upvp * (g1_dd(yg) * g1(yg) + g1_d(yg)**2) / (g1_d(yg) * g1(yg))
-   PSI_vT = latcirc * g / T0 / N2 * vpTp.mean(axis=0)
+   PSI_vT = latcirc * dens0 * g / T0 / N2 * vpTp.mean(axis=0)
+   EPFz = g * f0 / T0 / N2 * vpTp
+   EPFd_z = (-dens0 * g * EPFz * h_d(pg) / h(pg)).mean(axis=0)
 
    #background (zonal mean) fields
    th_vert = T0 * (1 + N2 / dens0 / g**2 * (p0 - pg))
@@ -119,6 +119,25 @@ def main():
    plt_yp_zm(yg[0, ...], pg[0, ...], upvp.mean(axis=0), EMFc.mean(axis=0) * 86400,\
             'Contours: u\'v\' [m$^2$ s$^{-2}$]\nShading: EMF U tendency [m s$^{-1}$ day$^{-1}$]',\
             'yp_EMF_EMFc.png', dict(colors='black', levels=np.arange(50, 400, 50)), dict(cmap='bwr'), clabelkw=dict(fmt='%d', inline=1, colors='black'))
+
+   #EPFz
+   plt.rcParams['figure.figsize'] = (12, 8)
+   csf = plt.contourf(yg[0, ...], pg[0, ...], EPFd_z * 86400, cmap='PuOr_r', norm=colors.TwoSlopeNorm(0))
+   #plt.quiver(yg[0, ::8, ::4], pg[0, ::8, ::4], -upvp.mean(axis=0)[::8, ::4], EPFz.mean(axis=0)[::8, ::4] * 500, pivot='mid')
+   plt.quiver(yg[0, ::8, ::4], pg[0, ::8, ::4], 0, EPFz.mean(axis=0)[::8, ::4] * 500, pivot='mid')
+   plt_paxis_adj()
+   plt.colorbar(csf)
+   plt.savefig('yp_EPFz.png')
+   plt.close()
+
+   #EPF
+   plt.rcParams['figure.figsize'] = (12, 8)
+   csf = plt.contourf(yg[0, ...], pg[0, ...], (EMFc.mean(axis=0) + EPFd_z) * 86400, cmap='PuOr_r', norm=colors.TwoSlopeNorm(0))
+   plt.quiver(yg[0, ::8, ::4], pg[0, ::8, ::4], -upvp.mean(axis=0)[::8, ::4], EPFz.mean(axis=0)[::8, ::4] * 500, pivot='mid')
+   plt_paxis_adj()
+   plt.colorbar(csf)
+   plt.savefig('yp_EPF.png')
+   plt.close()
 
    plt.rcParams['figure.figsize'] = (12, 8)
    plt.contour(yg[0, ...] / 1e3, pg[0, ...], th_bg[0, ...], levels=thlevs, colors='red')
@@ -173,6 +192,9 @@ def g1sq_ddd(y):
 
 def h(p):
    return np.dot(abc, np.array([p**2, p, 1]))
+
+def h_d(p):
+   return np.dot(abc[:-1], np.array([2 * p, 1]))
 
 def h_int(p):
    #return np.dot(abc, np.array([(p0**2 - p**2) / 2, p0 - p, np.log(p0 / p)]))
