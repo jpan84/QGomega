@@ -29,7 +29,7 @@ dens0 = p0 / Rd / T0
 #print('dens0', dens0)
 
 #eddy amplitudes
-Zamp = 200
+Zamp = 100
 Tamp = 10
 
 #domain coord vectors
@@ -82,18 +82,24 @@ def main():
    th_vert = T0 * (1 + N2 / dens0 / g**2 * (p0 - pg))
    th_bg = th_vert * (1 + 1e4 * g1sq_d(yg))
    th_y = th_vert * 1e4 * g1sq_dd(yg)
-   U_consts = -Rd * T0 * N2 / f0 / p0**kap / dens0 / g**2
-   U_bg = U_consts * th_y * (T0 * (pg - p0) + kap_poly_int(pg))
+   U_consts = 1e4 * Rd * T0 / f0 / p0**kap
+   U_bg = U_consts * g1sq_dd(yg) * kap_poly_int(pg)
    print(U_bg.min(), U_bg.max())
 
    #synoptic fields
-   #Tadv_bg =
+   Tadv = -(U_bg * diffx(Tp) + up.real * diffx(Tp).real + vp.real * (Tp * g1_d(yg) / g1(yg)).real + vp * th_y * (pg / p0)**kap) #missing advection of eddy by meridional Eulerian mean wind if not QG
 
    #x-p plane T, Z
    plt.rcParams['figure.figsize'] = (12, 8)
    yslc = (slice(None), 50, slice(None))
    plt_xp(xg, pg, yslc, Zp, Tp, 'Contours: Z\' (interval 60 m)\nShading: T\' [K]',\
              'xp_T_Z.png', dict(colors='black', levels=Zlevs), dict(cmap='RdBu_r'))
+
+   #x-p plane Z, TA
+   plt.rcParams['figure.figsize'] = (12, 8)
+   yslc = (slice(None), 2, slice(None))
+   plt_xp(xg, pg, yslc, Zp, Tadv * 86400, 'Contours: Z\' (interval 60 m)\nShading: T adv [K day$^{-1}$]',\
+             'xp_Z_TA.png', dict(colors='black', levels=Zlevs), dict(cmap='RdBu_r'))
 
    #x-y plane Z, v
    #print(pg[..., 18])
@@ -104,6 +110,10 @@ def main():
    #x-y plane Z, EHF
    plt_xy(xg, yg, pslc, Zp, vpTp, '%d hPa     Contours: Z\' (interval 60 m)\nShading: v\'T\' [K m s$^{-1}$]' % (pg[pslc].min() / 100),\
              'xy_Z_EHF.png', dict(colors='black', levels=Zlevs), dict(cmap='bwr', norm=colors.TwoSlopeNorm(0)))
+
+   #x-y plane Z, TA
+   plt_xy(xg, yg, pslc, Zp, Tadv * 86400, '%d hPa     Contours: Z\' (interval 60 m)\nShading: T adv [K day$^{-1}$]' % (pg[pslc].min() / 100),\
+             'xy_Z_TA.png', dict(colors='black', levels=Zlevs), dict(cmap='bwr', norm=colors.TwoSlopeNorm(0)))
 
    #x-y plane Z, EMF
    pslc = (slice(None), slice(None), 2)
@@ -200,8 +210,12 @@ def h_int(p):
    #return np.dot(abc, np.array([(p0**2 - p**2) / 2, p0 - p, np.log(p0 / p)]))
    return np.einsum('i,i...->...', abc, np.array([(p0**2 - p**2) / 2, p0 - p, np.log(p0 / p)]))
 
+#def kap_poly_int(p):
+#   return p0 / kap * (p**kap - p0**kap) - (p**(kap + 1) - p0**(kap + 1)) / (kap + 1)
+
 def kap_poly_int(p):
-   return p0 / kap * (p**kap - p0**kap) - (p**(kap + 1) - p0**(kap + 1)) / (kap + 1)
+    return (p**kap - p0**kap) / kap * (1 + N2 * p0 / dens0 / g**2)\
+           - (p**(kap + 1) - p0**(kap + 1)) / (kap + 1) * N2 / dens0 / g**2
 
 #######################################
 
