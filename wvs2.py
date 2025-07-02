@@ -94,16 +94,16 @@ def main():
    Tadv = -(U_bg * diffx(Tp) + up.real * diffx(Tp).real + vp.real * (Tp * g1_d(yg) / g1(yg)).real + vp * th_y * (pg / p0)**kap) #missing advection of eddy by meridional Eulerian mean wind if not QG
    RVA = -(U_bg + up.real) * diffx(zetp).real - vp.real * (diffx(diffx(psip)) * g1_d(yg) / g1(yg) + psip * g1_ddd(yg) / g1(yg))# - U_bg * g1sq_ddd(yg) / g1sq_dd(yg))
    RVA_amp = 0.5 * RVA.mean(axis=0).min()
-   RVA_eig = (RVA_amp * eigy_VA(yg)[0] * eigp_VA(pg)[0])[0] #made vertical profile stout so that w is strongest in mid-tropo
+   RVA_eig = (RVA_amp * eigy_VA(yg)[0].real * eigp_VA(pg)[0].real)[0] #made vertical profile stout so that w is strongest in mid-tropo
    evy_VA, evp_VA = eigy_VA(0)[1], eigp_VA(0)[1]
    Wamp_VA = RVA_amp * f0 * dens0 * g * evp_VA / N2 /\
-               (-evy_VA**2 + (dens0 * g * f0 * evp_VA)**2 / N2)
-   WQG_VA = (Wamp_VA * eigy_VA(yg)[0] * eigp_VA(pg)[0])[0]
+               (evy_VA**2 + (dens0 * g * f0 * evp_VA)**2 / N2)
+   WQG_VA = (Wamp_VA * eigy_VA(yg)[0].real * eigp_VA(pg)[0])[0] #cannot take real of eigp here because relying on eigval quarter-wave shift
    TA_amp = Tadv.mean(axis=0).max()
-   TA_eig = TA_amp * eigy_TA(yg)[0] * eigp_TA(pg)[0]
+   TA_eig = TA_amp * eigy_TA(yg)[0].real * eigp_TA(pg)[0].real
    evy_TA, evp_TA = eigy_TA(0)[1], eigp_TA(0)[1]
    Wamp_TA = TA_amp * g * evy_TA**2 / N2 / T0 / (evy_TA**2 + (dens0 * g * f0 * evp_TA)**2 / N2)
-   WQG_TA = (Wamp_TA * eigy_TA(yg)[0] * eigp_TA(pg)[0])[0]
+   WQG_TA = (Wamp_TA * eigy_TA(yg)[0].real * eigp_TA(pg)[0])[0]
 
    #x-p plane T, Z
    plt.rcParams['figure.figsize'] = (12, 8)
@@ -245,11 +245,11 @@ def g1sq_ddd(y):
    return 2 * (2 * g1_d(y) * g1_dd(y)\
           + g1_d(y) * g1_dd(y) + g1(y) * g1_ddd(y))
 
-def eigy_TA(y, coef=np.pi / 1e6):
-   return np.sin(coef * y), coef
+def eigy_TA(y, coef=1j * np.pi / 1e6):
+   return -1j * np.exp(coef * y), coef
 
-def eigy_VA(y, coef=np.pi / 9.5e5):
-   return np.cos(coef * y), coef
+def eigy_VA(y, coef=1j * np.pi / 9.5e5):
+   return np.exp(coef * y), coef
 
 def h(p):
    return np.dot(abc, np.array([p**2, p, 1]))
@@ -261,8 +261,8 @@ def h_int(p):
    #return np.dot(abc, np.array([(p0**2 - p**2) / 2, p0 - p, np.log(p0 / p)]))
    return np.einsum('i,i...->...', abc, np.array([(p0**2 - p**2) / 2, p0 - p, np.log(p0 / p)]))
 
-def eigp_TA(p, coef=np.pi/7.5e4):
-   return np.sin(coef * (p - 2.5e4)), coef
+def eigp_TA(p, coef=1j * np.pi/7.5e4):
+   return -1j * np.exp(coef * (p - 2.5e4)), coef
 
 def eigp_VA(p, coef=1j * np.pi/8.5e4):
    return np.exp(coef * (p - 2e4)), coef
