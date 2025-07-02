@@ -54,6 +54,8 @@ vlevs = symclevs(np.arange(5, 30, 5))
 wlevs = symclevs(1e-3 * np.arange(1, 10))
 Tlevs = symclevs(np.arange(2, 11, 2))
 adiablevs = symclevs(np.arange(1, 5)) # K/day
+dUlevs = symclevs(np.arange(3, 13, 3)) # m/s/day
+VAlevs = symclevs(np.arange(1.5e-5, 1e-4, 1.5e-5))
 plabs = np.arange(300, 1001, 100) #np.array([300, 400, 500, 600, 700, 850, 1000])
 psilevs = 2.**np.arange(0, 10) #1e10 kg s-1
 thlevs = np.arange(250, 400, 5)
@@ -67,6 +69,8 @@ def main():
    Zp = Z0 + f(xg) * g1(yg) * Rd * Tamp / g * 1j * h_int(pg)
    up = -g / f0 * (Zp * g1_d(yg) / g1(yg))
    vp = g / f0 * diffx(Zp)
+   psip = g / f0 * Zp
+   zetp = diffx(diffx(psip)) + psip * g1_dd(yg) / g1(yg)
    #print(vp.max())
 
    #eddy flux fields
@@ -88,6 +92,8 @@ def main():
 
    #synoptic fields
    Tadv = -(U_bg * diffx(Tp) + up.real * diffx(Tp).real + vp.real * (Tp * g1_d(yg) / g1(yg)).real + vp * th_y * (pg / p0)**kap) #missing advection of eddy by meridional Eulerian mean wind if not QG
+   RVA = -(U_bg + up.real) * diffx(zetp).real - vp.real * (diffx(diffx(psip)) * g1_d(yg) / g1(yg) + psip * g1_ddd(yg) / g1(yg))
+   RVA_eig = (RVA.mean(axis=0).min() * eigy_VA(yg)[0] * eigp_VA(pg)[0])[0]
 
    #x-p plane T, Z
    plt.rcParams['figure.figsize'] = (12, 8)
@@ -115,6 +121,10 @@ def main():
    plt_xy(xg, yg, pslc, Zp, Tadv * 86400, '%d hPa     Contours: Z\' (interval 60 m)\nShading: T adv [K day$^{-1}$]' % (pg[pslc].min() / 100),\
              'xy_Z_TA.png', dict(colors='black', levels=Zlevs), dict(cmap='bwr', norm=colors.TwoSlopeNorm(0)))
 
+   #x-y plane Z, VA
+   plt_xy(xg, yg, pslc, Zp, RVA * 86400, '%d hPa     Contours: Z\' (interval 60 m)\nShading: Relvort adv [s$^{-1}$ day$^{-1}$]' % (pg[pslc].min() / 100),\
+             'xy_Z_RVA.png', dict(colors='black', levels=Zlevs), dict(cmap='bwr', norm=colors.TwoSlopeNorm(0)))
+
    #x-y plane Z, EMF
    pslc = (slice(None), slice(None), 2)
    plt_xy(xg, yg, pslc, Zp, upvp, '%d hPa     Contours: Z\' (interval 60 m)\nShading: u\'v\' [m$^2$ s$^{-2}$]' % (pg[pslc].min() / 100),\
@@ -125,10 +135,25 @@ def main():
             'Contours: Residual streamfunction $\\bar{\Psi}^*$, vT term [10$^{10}$ kg s$^{-1}$]\nShading: EHF warming tendency [K day$^{-1}$]',\
             'yp_PSIvT_EHFc.png', dict(colors='black', levels=psilevs), dict(cmap='bwr'), clabelkw=dict(fmt='%d', inline=1, colors='black'))
 
+   #y-p plane, TA, EHFc
+   plt_yp_zm(yg[0, ...], pg[0, ...], Tadv.mean(axis=0) * 86400, EHFc.mean(axis=0) * 86400,\
+            'Contours: T advection [K day$^{-1}$]\nShading: EHF warming tendency [K day$^{-1}$]',\
+            'yp_TA_EHFc.png', dict(colors='black', levels=adiablevs), dict(cmap='bwr'), clabelkw=dict(fmt='%d', inline=1, colors='black'))
+
    #y-p plane, EMF, EMFc
    plt_yp_zm(yg[0, ...], pg[0, ...], upvp.mean(axis=0), EMFc.mean(axis=0) * 86400,\
             'Contours: u\'v\' [m$^2$ s$^{-2}$]\nShading: EMF U tendency [m s$^{-1}$ day$^{-1}$]',\
             'yp_EMF_EMFc.png', dict(colors='black', levels=np.arange(50, 400, 50)), dict(cmap='bwr'), clabelkw=dict(fmt='%d', inline=1, colors='black'))
+
+   #y-p plane, EMFc, VA
+   plt_yp_zm(yg[0, ...], pg[0, ...], EMFc.mean(axis=0) * 86400, RVA.mean(axis=0) * 86400,\
+            'Contours: EMF U tendency [m s$^{-1}$ day$^{-1}$]\nShading: Relvort adv [s$^{-1}$ day$^{-1}$]',\
+            'yp_EMFc_RVA.png', dict(colors='black', levels=dUlevs), dict(cmap='bwr', norm=colors.TwoSlopeNorm(0)), clabelkw=dict(fmt='%d', inline=1, colors='black'))
+
+   #y-p plane, VA, VA eigfunc approx
+   plt_yp_zm(yg[0, ...], pg[0, ...], RVA_eig * 86400, RVA.mean(axis=0) * 86400,\
+            'Contours: Eigenfunction approx\nShading: Relvort adv [s$^{-1}$ day$^{-1}$]',\
+            'yp_RVAeig.png', dict(colors='black', levels=VAlevs), dict(cmap='bwr', norm=colors.TwoSlopeNorm(0)), clabelkw=dict(fmt=lambda x: f"{x:.1e}", inline=1, colors='black'))
 
    #EPFz
    plt.rcParams['figure.figsize'] = (12, 8)
@@ -200,6 +225,12 @@ def g1sq_ddd(y):
    return 2 * (2 * g1_d(y) * g1_dd(y)\
           + g1_d(y) * g1_dd(y) + g1(y) * g1_ddd(y))
 
+def eigy_TA(y, coef=np.pi / 1e6):
+   return np.sin(coef * y), coef
+
+def eigy_VA(y, coef=np.pi / 9.5e5):
+   return np.cos(coef * y), coef
+
 def h(p):
    return np.dot(abc, np.array([p**2, p, 1]))
 
@@ -209,6 +240,12 @@ def h_d(p):
 def h_int(p):
    #return np.dot(abc, np.array([(p0**2 - p**2) / 2, p0 - p, np.log(p0 / p)]))
    return np.einsum('i,i...->...', abc, np.array([(p0**2 - p**2) / 2, p0 - p, np.log(p0 / p)]))
+
+def eigp_TA(p, coef=np.pi/7.5e4):
+   return np.sin(coef * (p - 2.5e4)), coef
+
+def eigp_VA(p, coef=np.pi/1.7e5):
+   return np.cos(coef * (p - 0.5e4)), coef
 
 #def kap_poly_int(p):
 #   return p0 / kap * (p**kap - p0**kap) - (p**(kap + 1) - p0**(kap + 1)) / (kap + 1)
