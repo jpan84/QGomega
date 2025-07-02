@@ -90,10 +90,20 @@ def main():
    U_bg = U_consts * g1sq_dd(yg) * kap_poly_int(pg)
    print(U_bg.min(), U_bg.max())
 
-   #synoptic fields
+   #synoptic fields and QG diag
    Tadv = -(U_bg * diffx(Tp) + up.real * diffx(Tp).real + vp.real * (Tp * g1_d(yg) / g1(yg)).real + vp * th_y * (pg / p0)**kap) #missing advection of eddy by meridional Eulerian mean wind if not QG
-   RVA = -(U_bg + up.real) * diffx(zetp).real - vp.real * (diffx(diffx(psip)) * g1_d(yg) / g1(yg) + psip * g1_ddd(yg) / g1(yg))
-   RVA_eig = (RVA.mean(axis=0).min() * eigy_VA(yg)[0] * eigp_VA(pg)[0])[0]
+   RVA = -(U_bg + up.real) * diffx(zetp).real - vp.real * (diffx(diffx(psip)) * g1_d(yg) / g1(yg) + psip * g1_ddd(yg) / g1(yg))# - U_bg * g1sq_ddd(yg) / g1sq_dd(yg))
+   RVA_amp = 0.5 * RVA.mean(axis=0).min()
+   RVA_eig = (RVA_amp * eigy_VA(yg)[0] * eigp_VA(pg)[0])[0] #made vertical profile stout so that w is strongest in mid-tropo
+   evy_VA, evp_VA = eigy_VA(0)[1], eigp_VA(0)[1]
+   Wamp_VA = RVA_amp * f0 * dens0 * g * evp_VA / N2 /\
+               (-evy_VA**2 + (dens0 * g * f0 * evp_VA)**2 / N2)
+   WQG_VA = (Wamp_VA * eigy_VA(yg)[0] * eigp_VA(pg)[0])[0]
+   TA_amp = Tadv.mean(axis=0).max()
+   TA_eig = TA_amp * eigy_TA(yg)[0] * eigp_TA(pg)[0]
+   evy_TA, evp_TA = eigy_TA(0)[1], eigp_TA(0)[1]
+   Wamp_TA = TA_amp * g * evy_TA**2 / N2 / T0 / (evy_TA**2 + (dens0 * g * f0 * evp_TA)**2 / N2)
+   WQG_TA = (Wamp_TA * eigy_TA(yg)[0] * eigp_TA(pg)[0])[0]
 
    #x-p plane T, Z
    plt.rcParams['figure.figsize'] = (12, 8)
@@ -154,6 +164,16 @@ def main():
    plt_yp_zm(yg[0, ...], pg[0, ...], RVA_eig * 86400, RVA.mean(axis=0) * 86400,\
             'Contours: Eigenfunction approx\nShading: Relvort adv [s$^{-1}$ day$^{-1}$]',\
             'yp_RVAeig.png', dict(colors='black', levels=VAlevs), dict(cmap='bwr', norm=colors.TwoSlopeNorm(0)), clabelkw=dict(fmt=lambda x: f"{x:.1e}", inline=1, colors='black'))
+
+   #y-p plane, WQG_VA, VA
+   plt_yp_zm(yg[0, ...], pg[0, ...], RVA.mean(axis=0) * 86400, WQG_VA,\
+            'Contours: Relvort adv [s$^{-1}$ day$^{-1}$]\nShading: w$_{QG}$ due to vort advection [m s$^{-1}$]',\
+            'yp_wVA_VA.png', dict(colors='black', levels=VAlevs), dict(cmap='bwr', norm=colors.TwoSlopeNorm(0)), clabelkw=dict(fmt=lambda x: f"{x:.1e}", inline=1, colors='black'))
+
+   #y-p plane, TA, WQG_TA
+   plt_yp_zm(yg[0, ...], pg[0, ...], Tadv.mean(axis=0) * 86400, WQG_TA,\
+            'Contours: T advection [K day$^{-1}$]\nShading: w$_{QG}$ due to T advection [m s$^{-1}$]',\
+            'yp_wTA_TA.png', dict(colors='black', levels=adiablevs), dict(cmap='bwr'), clabelkw=dict(fmt='%d', inline=1, colors='black'))
 
    #EPFz
    plt.rcParams['figure.figsize'] = (12, 8)
@@ -244,8 +264,8 @@ def h_int(p):
 def eigp_TA(p, coef=np.pi/7.5e4):
    return np.sin(coef * (p - 2.5e4)), coef
 
-def eigp_VA(p, coef=np.pi/1.7e5):
-   return np.cos(coef * (p - 0.5e4)), coef
+def eigp_VA(p, coef=1j * np.pi/8.5e4):
+   return np.exp(coef * (p - 2e4)), coef
 
 #def kap_poly_int(p):
 #   return p0 / kap * (p**kap - p0**kap) - (p**(kap + 1) - p0**(kap + 1)) / (kap + 1)
