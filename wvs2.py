@@ -98,12 +98,14 @@ def main():
    evy_VA, evp_VA = eigy_VA(0)[1], eigp_VA(0)[1]
    Wamp_VA = RVA_amp * f0 * dens0 * g * evp_VA / N2 /\
                (evy_VA**2 + (dens0 * g * f0 * evp_VA)**2 / N2)
-   WQG_VA = (Wamp_VA * eigy_VA(yg)[0].real * eigp_VA(pg)[0])[0] #cannot take real of eigp here because relying on eigval quarter-wave shift
+   WQG_VA = (eigy_VA(yg)[0].real * (Wamp_VA * eigp_VA(pg)[0]).real)[0] #Wamp_VA has a factor of evp so must be multiplied by complex eigp
+   vag_VA = (dens0 * g * (eigy_VA(yg)[0] / evy_VA).real * (Wamp_VA * eigp_VA(pg)[0] * evp_VA).real)[0]
    TA_amp = Tadv.mean(axis=0).max()
    TA_eig = TA_amp * eigy_TA(yg)[0].real * eigp_TA(pg)[0].real
    evy_TA, evp_TA = eigy_TA(0)[1], eigp_TA(0)[1]
    Wamp_TA = TA_amp * g * evy_TA**2 / N2 / T0 / (evy_TA**2 + (dens0 * g * f0 * evp_TA)**2 / N2)
-   WQG_TA = (Wamp_TA * eigy_TA(yg)[0].real * eigp_TA(pg)[0])[0]
+   WQG_TA = (eigy_TA(yg)[0].real * Wamp_TA * eigp_TA(pg)[0].real)[0]
+   vag_TA = (Wamp_TA * dens0 * g * (eigy_TA(yg)[0] / evy_TA).real * (eigp_TA(pg)[0] * evp_TA).real)[0]
 
    #x-p plane T, Z
    plt.rcParams['figure.figsize'] = (12, 8)
@@ -174,6 +176,53 @@ def main():
    plt_yp_zm(yg[0, ...], pg[0, ...], Tadv.mean(axis=0) * 86400, WQG_TA,\
             'Contours: T advection [K day$^{-1}$]\nShading: w$_{QG}$ due to T advection [m s$^{-1}$]',\
             'yp_wTA_TA.png', dict(colors='black', levels=adiablevs), dict(cmap='bwr'), clabelkw=dict(fmt='%d', inline=1, colors='black'))
+
+   #y-p plane VA-induced circ 
+   plt.rcParams['figure.figsize'] = (12, 8)
+   csf = plt.contourf(yg[0, ...] / 1e3, pg[0, ...], RVA.mean(axis=0) * 86400, cmap='bwr', norm=colors.TwoSlopeNorm(0))
+   #cs = plt.contour(yg[0, ...] / 1e3, pg[0, ...], DTADIAB_TAresp * 86400, levels=adiablevs, colors='purple')   
+   #print(vag_VA.shape, WQG_VA.shape)
+   qv = plt.quiver(yg[0, ::8, ::4] / 1e3, pg[0, ::8, ::4], vag_VA[::8, ::4], WQG_VA[::8, ::4] * 100, pivot='mid', scale=1e1, width=5e-3)
+   plt.quiverkey(qv, X=0.75, Y=-0.1, U=1, label='1 m, cm s$^{-1}$', labelpos='E')
+   plt_paxis_adj()
+   #plt.clabel(cs, fmt='%d', inline=1, colors='purple')
+   #plt.title('Contours: adiabatic T tendency induced by QG secondary circulation [K day$^{-1}$]', color='purple')
+   plt.title('QG secondary circulation induced by relvort advection')
+   plt.xlabel('y [km]')
+   plt.colorbar(csf, label='Relvort adv [s$^{-1}$ day$^{-1}$]')
+   plt.savefig('yp_QG_VA.png')
+   plt.close()
+
+   #y-p plane TA-induced circ 
+   plt.rcParams['figure.figsize'] = (12, 8)
+   csf = plt.contourf(yg[0, ...] / 1e3, pg[0, ...], Tadv.mean(axis=0) * 86400, cmap='bwr')
+   #cs = plt.contour(yg[0, ...] / 1e3, pg[0, ...], DTADIAB_TAresp * 86400, levels=adiablevs, colors='purple')   
+   #print(vag_VA.shape, WQG_VA.shape)
+   qv = plt.quiver(yg[0, ::8, ::4] / 1e3, pg[0, ::8, ::4], vag_TA[::8, ::4], WQG_TA[::8, ::4] * 100, pivot='mid', scale=1e1, width=5e-3)
+   plt.quiverkey(qv, X=0.75, Y=-0.1, U=1, label='1 m, cm s$^{-1}$', labelpos='E')
+   plt_paxis_adj()
+   #plt.clabel(cs, fmt='%d', inline=1, colors='purple')
+   #plt.title('Contours: adiabatic T tendency induced by QG secondary circulation [K day$^{-1}$]', color='purple')
+   plt.title('QG secondary circulation induced by T advection')
+   plt.xlabel('y [km]')
+   plt.colorbar(csf, label='T advection [K day$^{-1}$]')
+   plt.savefig('yp_QG_TA.png')
+   plt.close()
+
+   #y-p plane QG circ 
+   plt.rcParams['figure.figsize'] = (12, 8)
+   csf = plt.contourf(yg[0, ...] / 1e3, pg[0, ...], Tadv.mean(axis=0) * 86400, cmap='bwr')
+   cs = plt.contour(yg[0, ...] / 1e3, pg[0, ...], RVA.mean(axis=0) * 86400, levels=VAlevs, colors='purple')   
+   qv = plt.quiver(yg[0, ::8, ::4] / 1e3, pg[0, ::8, ::4], (vag_VA + vag_TA)[::8, ::4], (WQG_VA + WQG_TA)[::8, ::4] * 100, pivot='mid', scale=1e1, width=5e-3)
+   plt.quiverkey(qv, X=1.27, Y=.78, U=1, label='1 m s$^{-1}$', labelpos='E')
+   plt.quiverkey(qv, X=1.17, Y=.85, U=1, angle=90, label='\t1 cm s$^{-1}$\n', labelpos='N')
+   plt_paxis_adj()
+   plt.clabel(cs, fmt=lambda x: f'{x:.1e}', inline=1, colors='purple')
+   plt.title('Total QG secondary circulation\nContours: relvort adv [s$^{-1}$ day$^{-1}$]', color='purple')
+   plt.xlabel('y [km]')
+   plt.colorbar(csf, label='T advection [K day$^{-1}$]')
+   plt.savefig('yp_QG.png')
+   plt.close()
 
    #EPFz
    plt.rcParams['figure.figsize'] = (12, 8)
