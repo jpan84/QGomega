@@ -57,7 +57,7 @@ adiablevs = symclevs(np.arange(1, 5)) # K/day
 dUlevs = symclevs(np.arange(3, 13, 3)) # m/s/day
 VAlevs = symclevs(np.arange(1e-5, 9e-5, 1e-5))
 plabs = np.arange(300, 1001, 100) #np.array([300, 400, 500, 600, 700, 850, 1000])
-psilevs = 2.**np.arange(0, 10) #1e10 kg s-1
+psilevs = symclevs(2.**np.arange(0, 10)) #1e10 kg s-1
 thlevs = np.arange(250, 400, 5)
 
 def main():
@@ -101,12 +101,14 @@ def main():
                (evy_VA**2 + (dens0 * g * f0 * evp_VA)**2 / N2)
    WQG_VA = (eigy_VA(yg)[0].real * (Wamp_VA * eigp_VA(pg)[0]).real)[0] #Wamp_VA has a factor of evp so must be multiplied by complex eigp
    vag_VA = (dens0 * g * (eigy_VA(yg)[0] / evy_VA).real * (Wamp_VA * eigp_VA(pg)[0] * evp_VA).real)[0]
+   PSI_QGVA = latcirc * dens0 * ((eigy_VA(yg)[0] / evy_VA).real * (Wamp_VA * eigp_VA(pg)[0]).real)[0] #mass streamfunc of VA-induced circ
    TA_amp = Tadv.mean(axis=0).max()
    TA_eig = TA_amp * eigy_TA(yg)[0].real * eigp_TA(pg)[0].real
    evy_TA, evp_TA = eigy_TA(0)[1], eigp_TA(0)[1]
    Wamp_TA = TA_amp * g * evy_TA**2 / N2 / T0 / (evy_TA**2 + (dens0 * g * f0 * evp_TA)**2 / N2)
    WQG_TA = (eigy_TA(yg)[0].real * Wamp_TA * eigp_TA(pg)[0].real)[0]
    vag_TA = (Wamp_TA * dens0 * g * (eigy_TA(yg)[0] / evy_TA).real * (eigp_TA(pg)[0] * evp_TA).real)[0]
+   PSI_QGTA = latcirc * dens0 * (Wamp_TA * (eigy_TA(yg)[0] / evy_TA).real * eigp_TA(pg)[0].real)[0]
 
    #x-p plane T, Z
    plt.rcParams['figure.figsize'] = (12, 8)
@@ -214,14 +216,14 @@ def main():
    #y-p plane VA-induced circ 
    plt.rcParams['figure.figsize'] = (12, 8)
    csf = plt.contourf(yg[0, ...] / 1e3, pg[0, ...], RVA.mean(axis=0) * 86400, cmap='bwr', norm=colors.TwoSlopeNorm(0))
-   #cs = plt.contour(yg[0, ...] / 1e3, pg[0, ...], DTADIAB_TAresp * 86400, levels=adiablevs, colors='purple')   
+   cs = plt.contour(yg[0, ...] / 1e3, pg[0, ...], PSI_QGVA / 1e10, levels=psilevs / 2, colors='black')
    #print(vag_VA.shape, WQG_VA.shape)
    qv = plt.quiver(yg[0, ::8, ::4] / 1e3, pg[0, ::8, ::4], vag_VA[::8, ::4], WQG_VA[::8, ::4] * 100, pivot='mid', scale=1e1, width=5e-3)
    plt.quiverkey(qv, X=0.75, Y=-0.1, U=1, label='1 m, cm s$^{-1}$', labelpos='E')
    plt_paxis_adj()
-   #plt.clabel(cs, fmt='%d', inline=1, colors='purple')
+   plt.clabel(cs, fmt='%.1f', inline=1, colors='black')
    #plt.title('Contours: adiabatic T tendency induced by QG secondary circulation [K day$^{-1}$]', color='purple')
-   plt.title('QG secondary circulation induced by relvort advection')
+   plt.title('QG secondary circulation induced by relvort advection\nAssociated zonal-mean streamfunction [10$^{10}$ kg s$^{-1}$]')
    plt.xlabel('y [km]')
    plt.colorbar(csf, label='Relvort adv [s$^{-1}$ day$^{-1}$]')
    plt.savefig('yp_QG_VA.png', bbox_inches='tight')
@@ -230,14 +232,14 @@ def main():
    #y-p plane TA-induced circ 
    plt.rcParams['figure.figsize'] = (12, 8)
    csf = plt.contourf(yg[0, ...] / 1e3, pg[0, ...], Tadv.mean(axis=0) * 86400, cmap='bwr')
-   #cs = plt.contour(yg[0, ...] / 1e3, pg[0, ...], DTADIAB_TAresp * 86400, levels=adiablevs, colors='purple')   
+   cs = plt.contour(yg[0, ...] / 1e3, pg[0, ...], PSI_QGTA / 1e10, levels=psilevs / 2, colors='black')
    #print(vag_VA.shape, WQG_VA.shape)
    qv = plt.quiver(yg[0, ::8, ::4] / 1e3, pg[0, ::8, ::4], vag_TA[::8, ::4], WQG_TA[::8, ::4] * 100, pivot='mid', scale=1e1, width=5e-3)
    plt.quiverkey(qv, X=0.75, Y=-0.1, U=1, label='1 m, cm s$^{-1}$', labelpos='E')
    plt_paxis_adj()
-   #plt.clabel(cs, fmt='%d', inline=1, colors='purple')
+   plt.clabel(cs, fmt='%.1f', inline=1, colors='black')
    #plt.title('Contours: adiabatic T tendency induced by QG secondary circulation [K day$^{-1}$]', color='purple')
-   plt.title('QG secondary circulation induced by T advection')
+   plt.title('QG secondary circulation induced by T advection\nAssociated zonal-mean streamfunction [10$^{10}$ kg s$^{-1}$]')
    plt.xlabel('y [km]')
    plt.colorbar(csf, label='T advection [K day$^{-1}$]')
    plt.savefig('yp_QG_TA.png', bbox_inches='tight')
@@ -246,17 +248,24 @@ def main():
    #y-p plane QG circ 
    plt.rcParams['figure.figsize'] = (12, 8)
    csf = plt.contourf(yg[0, ...] / 1e3, pg[0, ...], Tadv.mean(axis=0) * 86400, cmap='bwr')
-   cs = plt.contour(yg[0, ...] / 1e3, pg[0, ...], RVA.mean(axis=0) * 86400, levels=VAlevs, colors='purple')   
+   cs = plt.contour(yg[0, ...] / 1e3, pg[0, ...], RVA.mean(axis=0) * 86400, levels=[-6e-5, -3e-5], colors='purple')   
+   cs1 = plt.contour(yg[0, ...] / 1e3, pg[0, ...], (PSI_QGVA + PSI_QGTA) / 1e10, levels=psilevs / 2, colors='black')
    qv = plt.quiver(yg[0, ::8, ::4] / 1e3, pg[0, ::8, ::4], (vag_VA + vag_TA)[::8, ::4], (WQG_VA + WQG_TA)[::8, ::4] * 100, pivot='mid', scale=1e1, width=5e-3)
    plt.quiverkey(qv, X=1.25, Y=.78, U=.5, label='0.5 m s$^{-1}$', labelpos='E')
    plt.quiverkey(qv, X=1.2, Y=.85, U=.5, angle=90, label='\t5 mm s$^{-1}$', labelpos='N', labelsep=0.2)
    plt_paxis_adj()
-   plt.clabel(cs, fmt=lambda x: f'{x:.1e}', inline=1, colors='purple')
-   plt.title('Total QG secondary circulation\nContours: relvort adv [s$^{-1}$ day$^{-1}$]', color='purple')
+   plt.clabel(cs1, fmt='%.1f', inline=1, colors='black')
+   plt.title('Total QG secondary circulation\nBlack: zonal-mean Eulerian mass streamfunction [10$^{10}$ kg s$^{-1}$]\nPurple: relvort adv [$-(3,6)\\times10^{-5}$ s$^{-1}$ day$^{-1}$]',\
+              fontsize=14)
    plt.xlabel('y [km]')
    plt.colorbar(csf, label='T advection [K day$^{-1}$]')
    plt.savefig('yp_QG.png')
    plt.close()
+
+   #y-p plane, PSI*, th_bg
+   plt_yp_zm(yg[0, ...], pg[0, ...], (PSI_vT + PSI_QGVA + PSI_QGTA) / 1e10, th_bg[0, ...],\
+            'Contours: Residual streamfunction $\\bar{\Psi}^*$ [10$^{10}$ kg s$^{-1}$]\nShading: theta [K]',\
+            'yp_PSIresid_thbg.png', dict(colors='black', levels=psilevs), dict(cmap='viridis', levels=np.arange(280, 325, 5)), clabelkw=dict(fmt='%d', inline=1, colors='black'))
 
    #EPFz
    plt.rcParams['figure.figsize'] = (12, 8)
