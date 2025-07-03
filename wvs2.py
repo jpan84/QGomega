@@ -33,7 +33,7 @@ Zamp = 100
 Tamp = 10
 
 #domain coord vectors
-lons = np.linspace(0, 2 * np.pi, 100)
+lons = np.linspace(0, 2 * np.pi, 200)
 yy = np.linspace(-500, 500, 100) * 1e3
 pp = np.arange(2.5e4, 1.e5 + 1, 2.5e3)
 
@@ -55,7 +55,7 @@ wlevs = symclevs(1e-3 * np.arange(1, 10))
 Tlevs = symclevs(np.arange(2, 11, 2))
 adiablevs = symclevs(np.arange(1, 5)) # K/day
 dUlevs = symclevs(np.arange(3, 13, 3)) # m/s/day
-VAlevs = symclevs(np.arange(1.5e-5, 1e-4, 1.5e-5))
+VAlevs = symclevs(np.arange(8e-6, 6.5e-4, 8e-6))
 plabs = np.arange(300, 1001, 100) #np.array([300, 400, 500, 600, 700, 850, 1000])
 psilevs = 2.**np.arange(0, 10) #1e10 kg s-1
 thlevs = np.arange(250, 400, 5)
@@ -92,7 +92,8 @@ def main():
 
    #synoptic fields and QG diag
    Tadv = -(U_bg * diffx(Tp) + up.real * diffx(Tp).real + vp.real * (Tp * g1_d(yg) / g1(yg)).real + vp * th_y * (pg / p0)**kap) #missing advection of eddy by meridional Eulerian mean wind if not QG
-   RVA = -(U_bg + up.real) * diffx(zetp).real - vp.real * (diffx(diffx(psip)) * g1_d(yg) / g1(yg) + psip * g1_ddd(yg) / g1(yg))# - U_bg * g1sq_ddd(yg) / g1sq_dd(yg))
+   RVA = -(U_bg + up.real) * diffx(zetp).real - vp.real * (diffx(diffx(psip)) * g1_d(yg) / g1(yg) + psip * g1_ddd(yg) / g1(yg) - U_bg * g1sq_dddd(yg) / g1sq_dd(yg))
+   RV = zetp - U_bg * g1sq_ddd(yg) / g1sq_dd(yg)
    RVA_amp = 0.5 * RVA.mean(axis=0).min()
    RVA_eig = (RVA_amp * eigy_VA(yg)[0].real * eigp_VA(pg)[0].real)[0] #made vertical profile stout so that w is strongest in mid-tropo
    evy_VA, evp_VA = eigy_VA(0)[1], eigp_VA(0)[1]
@@ -133,9 +134,42 @@ def main():
    plt_xy(xg, yg, pslc, Zp, Tadv * 86400, '%d hPa     Contours: Z\' (interval 60 m)\nShading: T adv [K day$^{-1}$]' % (pg[pslc].min() / 100),\
              'xy_Z_TA.png', dict(colors='black', levels=Zlevs), dict(cmap='bwr', norm=colors.TwoSlopeNorm(0)))
 
+   #x-y plane Z, u,v, T
+   plt.rcParams['figure.figsize'] = (14, 2)
+   lonplt = xg / a / np.cos(lat0) * 180 / np.pi
+   csf = plt.contourf(lonplt[pslc], yg[pslc] / 1e3, (th_bg * (pg / p0)**kap + Tp)[pslc] - 273.15, cmap='RdYlBu_r', norm=colors.TwoSlopeNorm(0))
+   plt.contour(lonplt[pslc], yg[pslc] / 1e3, Zp[pslc], levels=Zlevs, colors='black')
+   qvslc = (slice(None, None, 4), slice(None, None, 16), pslc[-1])
+   qv = plt.quiver(lonplt[qvslc], yg[qvslc] / 1e3, (U_bg + up.real)[qvslc], vp[qvslc], pivot='mid', scale=1e3)
+   plt.quiverkey(qv, X=0.75, Y=-0.3, U=30, label='30 m s$^{-1}$', labelpos='E')
+   plt.xlabel('lon')
+   plt.ylabel('y [km]')
+   plt.xlim(0, 90)
+   plt.colorbar(csf)
+   plt.title('%d hPa      Contours: Z anomaly [interval 60 m]\nShading: T [°C]' % (pg[pslc].min() / 100))
+   plt.savefig('xy_Zp_Ttot_Vtot.png', bbox_inches='tight')
+   plt.close()
+
    #x-y plane Z, VA
+   pslc = (slice(None), slice(None), 10)
    plt_xy(xg, yg, pslc, Zp, RVA * 86400, '%d hPa     Contours: Z\' (interval 60 m)\nShading: Relvort adv [s$^{-1}$ day$^{-1}$]' % (pg[pslc].min() / 100),\
-             'xy_Z_RVA.png', dict(colors='black', levels=Zlevs), dict(cmap='bwr', norm=colors.TwoSlopeNorm(0)))
+             'xy_Z_RVA.png', dict(colors='black', levels=Zlevs), dict(cmap='bwr', levels=np.arange(-1e-3, 1.1e-3, 2e-4)))
+
+   #x-y plane Z, u,v, RV
+   plt.rcParams['figure.figsize'] = (14, 2)
+   lonplt = xg / a / np.cos(lat0) * 180 / np.pi
+   csf = plt.contourf(lonplt[pslc], yg[pslc] / 1e3, RV[pslc], cmap='Spectral_r', norm=colors.TwoSlopeNorm(0))
+   plt.contour(lonplt[pslc], yg[pslc] / 1e3, Zp[pslc], levels=Zlevs, colors='black')
+   qvslc = (slice(None, None, 4), slice(None, None, 16), pslc[-1])
+   qv = plt.quiver(lonplt[qvslc], yg[qvslc] / 1e3, (U_bg + up.real)[qvslc], vp[qvslc], pivot='mid', scale=1e3)
+   plt.quiverkey(qv, X=0.75, Y=-0.3, U=30, label='30 m s$^{-1}$', labelpos='E')
+   plt.xlabel('lon')
+   plt.ylabel('y [km]')
+   plt.xlim(0, 90)
+   plt.colorbar(csf)
+   plt.title('%d hPa      Contours: Z anomaly [interval 60 m]\nShading: Relvort [s$^{-1}$]' % (pg[pslc].min() / 100))
+   plt.savefig('xy_Zp_RVtot_Vtot.png', bbox_inches='tight')
+   plt.close()
 
    #x-y plane Z, EMF
    pslc = (slice(None), slice(None), 2)
@@ -214,8 +248,8 @@ def main():
    csf = plt.contourf(yg[0, ...] / 1e3, pg[0, ...], Tadv.mean(axis=0) * 86400, cmap='bwr')
    cs = plt.contour(yg[0, ...] / 1e3, pg[0, ...], RVA.mean(axis=0) * 86400, levels=VAlevs, colors='purple')   
    qv = plt.quiver(yg[0, ::8, ::4] / 1e3, pg[0, ::8, ::4], (vag_VA + vag_TA)[::8, ::4], (WQG_VA + WQG_TA)[::8, ::4] * 100, pivot='mid', scale=1e1, width=5e-3)
-   plt.quiverkey(qv, X=1.27, Y=.78, U=1, label='1 m s$^{-1}$', labelpos='E')
-   plt.quiverkey(qv, X=1.17, Y=.85, U=1, angle=90, label='\t1 cm s$^{-1}$\n', labelpos='N')
+   plt.quiverkey(qv, X=1.25, Y=.78, U=.5, label='0.5 m s$^{-1}$', labelpos='E')
+   plt.quiverkey(qv, X=1.2, Y=.85, U=.5, angle=90, label='\t5 mm s$^{-1}$', labelpos='N', labelsep=0.2)
    plt_paxis_adj()
    plt.clabel(cs, fmt=lambda x: f'{x:.1e}', inline=1, colors='purple')
    plt.title('Total QG secondary circulation\nContours: relvort adv [s$^{-1}$ day$^{-1}$]', color='purple')
@@ -268,6 +302,8 @@ def yargs_dd(y):
 def yargs_ddd(y):
    return 0
 
+yarg_dddd = yargs_ddd
+
 def g1(y):
    return np.exp(yargs(y))
 
@@ -287,12 +323,19 @@ def g1_ddd(y):
    return yargs_ddd(y) * g1(y) + yargs_dd(y) * g1_d(y)\
           + yargs_dd(y) * g1_d(y) + yargs_d(y) * g1_dd(y)
 
+def g1_dddd(y):
+   return 3 * yargs_dd(y) * g1_dd(y) + yargs_d(y) * g1_ddd(y)
+
 def g1sq_dd(y):
    return 2 * (g1_d(y) * g1_d(y) + g1(y) * g1_dd(y))
 
 def g1sq_ddd(y):
    return 2 * (2 * g1_d(y) * g1_dd(y)\
           + g1_d(y) * g1_dd(y) + g1(y) * g1_ddd(y))
+
+def g1sq_dddd(y):
+   return 2 * (3 * (g1_dd(y)**2 + g1_d(y) * g1_ddd(y))\
+          + g1_d(y) * g1_ddd(y) + g1(y) * g1_dddd(y))
 
 def eigy_TA(y, coef=1j * np.pi / 1e6):
    return -1j * np.exp(coef * y), coef
@@ -356,11 +399,11 @@ def plt_yp_zm(yg, pg, contfld, conffld, title, outname, contkw, confkw, clabelkw
    plt.rcParams['figure.figsize'] = (12, 8)
    csf = plt.contourf(yg / 1e3, pg, conffld, **confkw)
    cs = plt.contour(yg / 1e3, pg, contfld, **contkw)
-   if clabelkw:
-      plt.clabel(cs, **clabelkw)
    plt.xlabel('y [km]')
    plt.title(title)
    plt_paxis_adj()
+   if clabelkw:
+      plt.clabel(cs, **clabelkw)
    plt.colorbar(csf)
    #plt.show()
    plt.savefig(outname, bbox_inches='tight')
