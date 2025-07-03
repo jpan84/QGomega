@@ -278,9 +278,13 @@ def main():
    plt.close()
 
    plt.rcParams['figure.figsize'] = (12, 8)
-   plt.contour(yg[0, ...] / 1e3, pg[0, ...], th_bg[0, ...], levels=thlevs, colors='red')
-   plt.contour(yg[0, ...] / 1e3, pg[0, ...], U_bg[0, ...], levels=Ulevs, colors='black')
+   cst = plt.contour(yg[0, ...] / 1e3, pg[0, ...], th_bg[0, ...], levels=thlevs, colors='red')
+   csu = plt.contour(yg[0, ...] / 1e3, pg[0, ...], U_bg[0, ...], levels=Ulevs, colors='black')
    plt_paxis_adj()
+   plt.xlabel('y [km]')
+   plt.title('Black: U [m/s], Red: Theta [K]')
+   plt.clabel(cst, fmt='%d', colors='red', inline=1)
+   plt.clabel(csu, fmt='%d', colors='black', inline=1)
    plt.savefig('yp_bg.png')
    plt.close()
 
