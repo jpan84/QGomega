@@ -55,7 +55,7 @@ wlevs = symclevs(1e-3 * np.arange(1, 10))
 Tlevs = symclevs(np.arange(2, 11, 2))
 adiablevs = symclevs(np.arange(1, 5)) # K/day
 dUlevs = symclevs(np.arange(3, 13, 3)) # m/s/day
-VAlevs = symclevs(np.arange(8e-6, 6.5e-4, 8e-6))
+VAlevs = symclevs(np.arange(1e-5, 9e-5, 1e-5))
 plabs = np.arange(300, 1001, 100) #np.array([300, 400, 500, 600, 700, 850, 1000])
 psilevs = 2.**np.arange(0, 10) #1e10 kg s-1
 thlevs = np.arange(250, 400, 5)
@@ -116,7 +116,7 @@ def main():
 
    #x-p plane Z, TA
    plt.rcParams['figure.figsize'] = (12, 8)
-   yslc = (slice(None), 2, slice(None))
+   #yslc = (slice(None), 2, slice(None))
    plt_xp(xg, pg, yslc, Zp, Tadv * 86400, 'Contours: Z\' (interval 60 m)\nShading: T adv [K day$^{-1}$]',\
              'xp_Z_TA.png', dict(colors='black', levels=Zlevs), dict(cmap='RdBu_r'))
 
@@ -146,7 +146,7 @@ def main():
    plt.ylabel('y [km]')
    plt.xlim(0, 90)
    plt.colorbar(csf)
-   plt.title('%d hPa      Contours: Z anomaly [interval 60 m]\nShading: T [°C]' % (pg[pslc].min() / 100))
+   plt.title('%d hPa      Contours: Z\' [interval 60 m]\nShading: T [°C]' % (pg[pslc].min() / 100))
    plt.savefig('xy_Zp_Ttot_Vtot.png', bbox_inches='tight')
    plt.close()
 
@@ -167,7 +167,7 @@ def main():
    plt.ylabel('y [km]')
    plt.xlim(0, 90)
    plt.colorbar(csf)
-   plt.title('%d hPa      Contours: Z anomaly [interval 60 m]\nShading: Relvort [s$^{-1}$]' % (pg[pslc].min() / 100))
+   plt.title('%d hPa      Contours: Z\' [interval 60 m]\nShading: Relvort [s$^{-1}$]' % (pg[pslc].min() / 100))
    plt.savefig('xy_Zp_RVtot_Vtot.png', bbox_inches='tight')
    plt.close()
 
@@ -204,12 +204,12 @@ def main():
    #y-p plane, WQG_VA, VA
    plt_yp_zm(yg[0, ...], pg[0, ...], RVA.mean(axis=0) * 86400, WQG_VA,\
             'Contours: Relvort adv [s$^{-1}$ day$^{-1}$]\nShading: w$_{QG}$ due to vort advection [m s$^{-1}$]',\
-            'yp_wVA_VA.png', dict(colors='black', levels=VAlevs), dict(cmap='bwr', norm=colors.TwoSlopeNorm(0)), clabelkw=dict(fmt=lambda x: f"{x:.1e}", inline=1, colors='black'))
+            'yp_wVA_VA.png', dict(colors='black', levels=VAlevs), dict(cmap='BrBG', norm=colors.TwoSlopeNorm(0)), clabelkw=dict(fmt=lambda x: f"{x:.1e}", inline=1, colors='black'))
 
    #y-p plane, TA, WQG_TA
    plt_yp_zm(yg[0, ...], pg[0, ...], Tadv.mean(axis=0) * 86400, WQG_TA,\
             'Contours: T advection [K day$^{-1}$]\nShading: w$_{QG}$ due to T advection [m s$^{-1}$]',\
-            'yp_wTA_TA.png', dict(colors='black', levels=adiablevs), dict(cmap='bwr'), clabelkw=dict(fmt='%d', inline=1, colors='black'))
+            'yp_wTA_TA.png', dict(colors='black', levels=adiablevs), dict(cmap='BrBG'), clabelkw=dict(fmt='%d', inline=1, colors='black'))
 
    #y-p plane VA-induced circ 
    plt.rcParams['figure.figsize'] = (12, 8)
@@ -224,7 +224,7 @@ def main():
    plt.title('QG secondary circulation induced by relvort advection')
    plt.xlabel('y [km]')
    plt.colorbar(csf, label='Relvort adv [s$^{-1}$ day$^{-1}$]')
-   plt.savefig('yp_QG_VA.png')
+   plt.savefig('yp_QG_VA.png', bbox_inches='tight')
    plt.close()
 
    #y-p plane TA-induced circ 
@@ -240,7 +240,7 @@ def main():
    plt.title('QG secondary circulation induced by T advection')
    plt.xlabel('y [km]')
    plt.colorbar(csf, label='T advection [K day$^{-1}$]')
-   plt.savefig('yp_QG_TA.png')
+   plt.savefig('yp_QG_TA.png', bbox_inches='tight')
    plt.close()
 
    #y-p plane QG circ 
