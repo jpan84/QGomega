@@ -57,5 +57,25 @@ def main():
    plt.savefig('DVA_test.png')
    plt.close()
 
+   TA = -ds['uwnd'] * T_x - ds['vwnd'] * T_y
+   plt.contourf(ds['lat'], ds['level'], TA.mean(dim=['time', 'lon']), levels=np.arange(-4e-5, 4.1e-5, 1e-5), cmap='BrBG')
+   plt.xlim(LAT1, LAT2)
+   plt.gca().invert_yaxis()
+   plt.colorbar()
+   plt.savefig('TA_test.png')
+   plt.close()
+
+   TA_x, TA_y = vw_geo.gradient(TA)
+   TA_xx, _ = vw_geo.gradient(TA_x)
+   TA_yy, _ = vw_geo.gradient(TA_y)
+   LTA = -Rd / ds['sigzm'] / ds[PNM] / 100 * (TA_xx + TA_yy)
+
+   plt.contourf(ds['lat'], ds['level'], LTA.mean(dim=['time', 'lon']), levels=np.arange(-1e-13, 1.01e-13, 1e-14), cmap='BrBG')
+   plt.xlim(LAT1, LAT2)
+   plt.gca().invert_yaxis()
+   plt.colorbar()
+   plt.savefig('LTA_test.png')
+   plt.close()
+
 if __name__ == '__main__':
    main()
