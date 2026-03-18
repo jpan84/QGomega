@@ -13,10 +13,10 @@ Rd = 287
 cp = 1005
 ae = 6.371e6
 
-LAT1, LAT2 = 20., 80.
+LAT1, LAT2 = 10., 80.
 
 def main():
-   ds = xr.open_mfdataset(os.path.join(DIRI, '*.2026.nc')).sel(level=slice(200, None)).chunk(level=-1).isel(time=slice(None, 121))
+   ds = xr.open_mfdataset(os.path.join(DIRI, '*.2026.nc')).sel(level=slice(200, None)).chunk(level=-1).isel(time=slice(None, 40))
    ds = ds.assign(f=2 * OM * np.sin(np.deg2rad(ds['lat'])))
    ds = ds.assign(thta=ds['air'] * (1000 / ds['level'])**(Rd / cp))
    ds = ds.assign(dens=ds['level'] * 100 / Rd / ds['air'])
@@ -42,22 +42,30 @@ def main():
             .differentiate('lat', edge_order=2).differentiate('lat', edge_order=2)
    LTA = LTA * (180 / np.pi / ae)**3 * Rd / ds['sigzm'] / ds['level'] / 100
 
+   ulevs = np.arange(-10, 55, 5)
+   ulevs = ulevs[ulevs != 0]
    plt.contourf(ds['lat'], ds['level'], vpTp.mean(dim=['time']).T, levels=np.arange(-50, 51, 5), cmap='bwr')
    #plt.contourf(ds['lat'], ds['level'], ds['omega'].mean(dim=['time', 'lon']), cmap='BrBG_r', levels=np.arange(-1e-1, 1.1e-1, 2e-2))
    plt.xlim(LAT1, LAT2)
    plt.gca().invert_yaxis()
    plt.colorbar()
-   plt.contour(ds['lat'], ds['level'], ds['omega'].mean(dim=['time', 'lon']), colors='black', levels=np.arange(-4e-2, 4.1e-2, 8e-3))
+   #plt.contour(ds['lat'], ds['level'], ds['omega'].mean(dim=['time', 'lon']), colors='black', levels=np.arange(-4e-2, 4.1e-2, 8e-3))
+   plt.contour(ds['lat'], ds['level'], ds['uwnd'].mean(dim=['time', 'lon']), colors='black', levels=ulevs)
+   qv = plt.quiver(ds['lat'], ds['level'], ds['vwnd'].mean(dim=['time', 'lon']), -1e2 * ds['omega'].mean(dim=['time', 'lon']), pivot='mid', scale=2e1, color='gray')
+   plt.quiverkey(qv, X=.75, Y=-0.1, U=1, label='1 m s$^{-1}$ 0.01 Pa s$^{-1}$', labelpos='E')
    plt.savefig('EHF_test.png')
    plt.close()
 
    up = ug - ug.mean(dim='lon')
    upvp = (up * vg).mean(dim='lon')
-   plt.contourf(ds['lat'], ds['level'], upvp.mean(dim=['time']).T, levels=np.arange(-100, 101, 10), cmap='bwr')
+   plt.contourf(ds['lat'], ds['level'], upvp.mean(dim=['time']).T, levels=np.arange(-120, 121, 20), cmap='bwr', extend='both')
    plt.xlim(LAT1, LAT2)
    plt.gca().invert_yaxis()
    plt.colorbar()
-   plt.contour(ds['lat'], ds['level'], ds['omega'].mean(dim=['time', 'lon']), colors='black', levels=np.arange(-4e-2, 4.1e-2, 8e-3))
+   #plt.contour(ds['lat'], ds['level'], ds['omega'].mean(dim=['time', 'lon']), colors='black', levels=np.arange(-4e-2, 4.1e-2, 8e-3))
+   plt.contour(ds['lat'], ds['level'], ds['uwnd'].mean(dim=['time', 'lon']), colors='black', levels=ulevs)
+   qv = plt.quiver(ds['lat'], ds['level'], ds['vwnd'].mean(dim=['time', 'lon']), -1e2 * ds['omega'].mean(dim=['time', 'lon']), pivot='mid', scale=2e1, color='gray')
+   plt.quiverkey(qv, X=.75, Y=-0.1, U=1, label='1 m s$^{-1}$ 0.01 Pa s$^{-1}$', labelpos='E')
    plt.savefig('EMF_test.png')
    plt.close()
 
